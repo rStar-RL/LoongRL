@@ -27,22 +27,22 @@ package_name = 'vllm'
 package_version = get_version(package_name)
 vllm_version = None
 
-if package_version == '0.3.1':
+if '0.3.1' in package_version:
     vllm_version = '0.3.1'
     from .vllm_v_0_3_1.llm import LLM
     from .vllm_v_0_3_1.llm import LLMEngine
     from .vllm_v_0_3_1 import parallel_state
-elif package_version == '0.4.2':
+elif '0.4.2' in package_version:
     vllm_version = '0.4.2'
     from .vllm_v_0_4_2.llm import LLM
     from .vllm_v_0_4_2.llm import LLMEngine
     from .vllm_v_0_4_2 import parallel_state
-elif package_version == '0.5.4':
+elif '0.5.4' in package_version:
     vllm_version = '0.5.4'
     from .vllm_v_0_5_4.llm import LLM
     from .vllm_v_0_5_4.llm import LLMEngine
     from .vllm_v_0_5_4 import parallel_state
-elif package_version == '0.6.3':
+elif '0.6.3' in package_version:
     vllm_version = '0.6.3'
     from .vllm_v_0_6_3.llm import LLM
     from .vllm_v_0_6_3.llm import LLMEngine

@@ -30,7 +30,8 @@ def run_ppo(config, compute_score=None):
         # this is for local ray cluster
         ray.init(runtime_env={'env_vars': {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN'}})
 
-    ray.get(main_task.remote(config, compute_score))
+    # we need to set RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES=0 to enable ray set visible devices for tasks
+    ray.get(main_task.options(runtime_env={'env_vars': {'RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES': '0'}}).remote(config, compute_score))
 
 
 @ray.remote(num_cpus=1)  # please make sure main_task is not scheduled on head

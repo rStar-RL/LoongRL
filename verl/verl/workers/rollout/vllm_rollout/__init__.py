@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from importlib.metadata import version, PackageNotFoundError
-
+from packaging.version import Version
 
 def get_version(pkg):
     try:
@@ -25,7 +25,7 @@ def get_version(pkg):
 package_name = 'vllm'
 package_version = get_version(package_name)
 
-if package_version <= '0.6.3':
+if Version(package_version) < Version('0.6.4'):
     vllm_mode = 'customized'
     from .vllm_rollout import vLLMRollout
 else:
