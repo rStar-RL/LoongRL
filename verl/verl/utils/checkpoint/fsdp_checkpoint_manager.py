@@ -14,13 +14,14 @@
 
 import ray
 import os
+from pathlib import Path
 
 import warnings
 
 import torch
 import torch.distributed
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, StateDictType
-from torch.distributed.fsdp import ShardedStateDictConfig, ShardedOptimStateDictConfig
+from torch.distributed.fsdp import ShardedStateDictConfig, ShardedOptimStateDictConfig, FullStateDictConfig
 
 from verl.utils.fs import copy_local_path_from_hdfs, is_non_local
 
@@ -93,7 +94,7 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(lr_scheduler_state_dict)
 
-    def save_checkpoint(self, local_path: str, global_step: int, remove_previous_ckpt=False, *args, **kwargs):
+    def save_checkpoint(self, local_path: str, global_step: int, remove_previous_ckpt=True, *args, **kwargs):
         # record the previous global step
         self.previous_global_step = global_step
 
@@ -138,10 +139,14 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         # wait for everyone to dump to local
         torch.distributed.barrier()
 
+        cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, cfg):
+            state_dict = self.model.state_dict()
+
         if self.rank == 0:
-            hf_local_path = os.path.join(local_path, 'huggingface')
+            hf_local_path = str(Path(local_path).parent / f'{Path(local_path).name}-huggingface')
             os.makedirs(hf_local_path, exist_ok=True)
-            self.model._fsdp_wrapped_module.config.save_pretrained(hf_local_path)
+            self.model._fsdp_wrapped_module.save_pretrained(hf_local_path, state_dict=state_dict)
             self.tokenizer.save_pretrained(hf_local_path)
 
         torch.distributed.barrier()
