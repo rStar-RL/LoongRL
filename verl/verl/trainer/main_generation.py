@@ -33,6 +33,7 @@ from verl import DataProto
 from verl.utils.fs import copy_local_path_from_hdfs
 from verl.workers.fsdp_workers import ActorRolloutRefWorker
 from verl.utils.hdfs_io import makedirs
+from verl.utils.chat_template import get_chat_template
 from verl.single_controller.ray import RayClassWithInitArgs, RayResourcePool, RayWorkerGroup
 
 
@@ -81,7 +82,8 @@ def main(config):
                                                max_length=config.rollout.prompt_length,
                                                return_tensors='pt',
                                                return_dict=True,
-                                               tokenize=True)
+                                               tokenize=True,
+                                               chat_template=get_chat_template(config.data.get('chat_template', None)))
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']
         position_ids = compute_position_id_with_mask(attention_mask)

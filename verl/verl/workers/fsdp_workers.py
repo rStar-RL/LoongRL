@@ -37,6 +37,7 @@ from verl.utils.import_utils import import_external_libs
 from verl.utils.model import compute_position_id_with_mask
 from verl.utils.flops_counter import FlopsCounter
 from verl.utils.checkpoint.fsdp_checkpoint_manager import FSDPCheckpointManager
+from verl.utils.chat_template import get_chat_template
 from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManager
 
 from codetiming import Timer
@@ -1067,7 +1068,8 @@ class RewardModelWorker(Worker):
 
             prompt_with_chat_template = target_tokenizer.apply_chat_template(chat,
                                                                              add_generation_prompt=False,
-                                                                             tokenize=False)
+                                                                             tokenize=False,
+                                                                             chat_template=get_chat_template(self.config.get('chat_template', None)))
             if self.rank == 0 and i == 0:
                 # for debugging purpose
                 print(f'Switch template. chat: {prompt_with_chat_template}')

@@ -44,7 +44,8 @@ class SFTDataset(Dataset):
                  response_key='response',
                  response_dict_keys=None,
                  max_length=1024,
-                 truncation='error'):
+                 truncation='error',
+                 chat_template=None):
         assert truncation in ['error', 'left', 'right']
         self.truncation = truncation
 
@@ -62,6 +63,8 @@ class SFTDataset(Dataset):
         self.response_dict_keys = [] if not response_dict_keys else response_dict_keys
 
         self.max_length = max_length
+
+        self.chat_template = chat_template
 
         self._download()
         self._read_files_and_tokenize()
@@ -117,7 +120,7 @@ class SFTDataset(Dataset):
         prompt_chat = [{'role': 'user', 'content': prompt}]
 
         # string
-        prompt_chat_str = tokenizer.apply_chat_template(prompt_chat, add_generation_prompt=True, tokenize=False)
+        prompt_chat_str = tokenizer.apply_chat_template(prompt_chat, add_generation_prompt=True, tokenize=False, chat_template=self.chat_template)
         response_chat_str = response + tokenizer.eos_token
 
         # tokenize
