@@ -33,6 +33,7 @@ git clone https://github.com/vllm-project/vllm.git
 cd vllm
 # if nvidia devices are used, can install main branch for better performance
 git checkout v0.6.3
+# export CCACHE_DIR=/scratch/ccahe if you encounter ccache permission problem
 python setup.py develop
 cd ..
 ```
@@ -47,4 +48,39 @@ cd ..
 
 # patch ray to enable ray set visible devices on AMD devices
 bash patches/ray_patch/patch.sh
+```
+
+### Launch Reward Server
+
+We found it helpful to compute the reward score in a remote server, since
+- the python environment is independent to the training process
+- the server handles exceptions itself
+- decouple the system, make the performance optimization easier
+
+Note that the server only supports judging python and cpp code currently.
+
+You can set up the server by following commands
+
+```bash
+# the python version should >= 3.10
+conda create -y -n server python=3.10
+sudo apt-get update && sudo apt-get install redis
+pip install redis
+pip install "fastapi[standard]"
+redis-server --daemonize yes
+git clone https://github.com/0xWJ/code-judge.git
+cd code-judge
+REDIS_URI=redis://localhost:6379 RUN_WORKERS=0 ~/.conda/envs/server/bin/fastapi run --workers 4 app/main.py
+REDIS_URI=redis://localhost:6379 python run_workers.py
+```
+
+### Multi-Node Training
+
+```bash
+# execute on node-0, can specify port by passing --port PORT_NUM
+ray start --head
+# execute on remaining nodes
+ray start --address="NODE_0_IP:PORT_NUM"
+
+# then execute the bash script on node-0
 ```

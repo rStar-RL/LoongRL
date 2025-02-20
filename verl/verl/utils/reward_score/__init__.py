@@ -30,6 +30,11 @@ def _default_compute_score(data_source, solution_str, ground_truth):
     elif data_source in ['codecontests', 'apps', 'codeforces', 'taco']:
         from . import prime_code
         res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
+    elif data_source in ['deepmind/code_contests']:
+        from . import code_server
+        res = code_server.compute_score(solution_str, ground_truth)
+        # directly return for now, since it includes debug str
+        return res
     else:
         raise NotImplementedError
 
