@@ -16,7 +16,7 @@ qwen_2_5_math = """
     {%- if messages[0]['role'] == 'system' %}
         {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}
     {%- else %}
-        {{- '<|im_start|>system\\nPlease reason step by step, and put your final answer within \\boxed{}.<|im_end|>\\n' }}
+        {{- '<|im_start|>system\\nPlease reason step by step, and put your final answer within \\\\boxed{}.<|im_end|>\\n' }}
     {%- endif %}
 {%- endif %}
 {%- for message in messages %}

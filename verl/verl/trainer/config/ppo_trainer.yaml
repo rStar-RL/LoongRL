@@ -83,6 +83,7 @@ actor_rollout_ref:
     log_prob_max_token_len_per_gpu: ${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}
     disable_log_stats: True
     enable_chunked_prefill: True # could get higher throughput
+    swap_space: 4 # GB, cpu memory used to swap the activation or something exceeding the GPU memory limit during generation
     # for hf rollout
     do_sample: True
     # number of responses (i.e. num sample times)

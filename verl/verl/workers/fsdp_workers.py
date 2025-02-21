@@ -686,6 +686,8 @@ class CriticWorker(Worker):
 
             # some parameters may not in torch_dtype
             critic_module.to(torch_dtype)
+            critic_module.score.weight.data.normal_(mean=0.0, std=1 / (critic_model_config.hidden_size + 1))
+            critic_module.score.bias.data.fill_(0.0)
 
             if config.model.get('enable_gradient_checkpointing', False):
                 critic_module.gradient_checkpointing_enable(gradient_checkpointing_kwargs={'use_reentrant': False})
@@ -945,7 +947,9 @@ class RewardModelWorker(Worker):
                                                                             attn_implementation='flash_attention_2',
                                                                             trust_remote_code=trust_remote_code)
             reward_module.to(torch.bfloat16)
-        auto_wrap_policy = get_fsdp_wrap_policy(module=reward_module, config=self.config.model.fsdp_config)
+            reward_module.score.weight.data.normal_(mean=0.0, std=1 / (config.hidden_size + 1))
+            reward_module.score.bias.data.fill_(0.0)
+        auto_wrap_policy = get_fsdp_wrap_policy(module=reward_module, config=model_config.model.fsdp_config)
 
         fsdp_mesh = self.device_mesh
         sharding_strategy = get_sharding_strategy(fsdp_mesh)
