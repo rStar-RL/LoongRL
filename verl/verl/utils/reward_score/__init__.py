@@ -35,6 +35,9 @@ def _default_compute_score(data_source, solution_str, ground_truth):
         res = code_server.compute_score(solution_str, ground_truth)
         # directly return for now, since it includes debug str
         return res
+    elif data_source.startswith('custom_longcontextqa_'):
+        from . import longcontext_qa
+        res = longcontext_qa.compute_score(solution_str, ground_truth)
     else:
         raise NotImplementedError
 
