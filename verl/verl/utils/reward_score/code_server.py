@@ -122,14 +122,16 @@ def validate_response_structure(processed_str: str) -> bool:
             debug_str.append(f"  [Error] {tag_str} appears {count} times (expected {expected_count})")
             validation_passed = False
 
+    legal_end_pattern1 = "</answer><|im_end|>"
+    legal_end_pattern2 = "</answer><|endoftext|>"
     # Verify tag order
     if (positions['think_start'] > positions['think_end'] or
         positions['think_end'] > positions['answer_start'] or
         positions['answer_start'] > positions['answer_end']):
         debug_str.append("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
         validation_passed = False
-    elif processed_str.strip()[-len("</answer><|endoftext|>"):] != "</answer><|endoftext|>":
-        debug_str.append("  [Error] Incorrect end token: Expected </answer><|endoftext|>")
+    elif not (processed_str.strip()[-len(legal_end_pattern1):] == legal_end_pattern1 or processed_str.strip()[-len(legal_end_pattern2):] == legal_end_pattern2):
+        debug_str.append("  [Error] Incorrect end token")
         validation_passed = False
     elif processed_str.strip()[0:len("<think>")] != "<think>":
         debug_str.append("  [Error] Incorrect start token: Expected <think>")
