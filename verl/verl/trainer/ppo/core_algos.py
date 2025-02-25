@@ -327,9 +327,11 @@ def kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_pe
     # # URL http://joschu.net/blog/kl-approx.html.
     if kl_penalty == 'low_var_kl':
         kl = ref_logprob - logprob
+        # clamp here to prevent ratio overflow, i.e. exp(kl) -> inf
+        kl = torch.clamp(kl, min=-9, max=3)
         ratio = torch.exp(kl)
         kld = (ratio - kl - 1).contiguous()
-        return torch.clamp(kld, min=-10, max=10)
+        return kld
 
     if kl_penalty == "full":
         # so, here logprob and ref_logprob should contain the logits for every token in vocabulary
