@@ -111,6 +111,7 @@ class ActorRolloutRefWorker(MegatronWorker):
 
         # normalize config
         if self._is_actor and self._is_rollout:
+            self.config.actor.ppo_mini_batch_size *= self.config.rollout.n
             self.config.actor.ppo_mini_batch_size //= mpu.get_data_parallel_world_size()
             if self.config.actor.get('ppo_micro_batch_size', None):
                 self.config.actor.ppo_micro_batch_size //= mpu.get_data_parallel_world_size()
@@ -165,11 +166,14 @@ class ActorRolloutRefWorker(MegatronWorker):
             vpp_rank = mpu.get_virtual_pipeline_model_parallel_rank()  # this will be set inside get_model
             # this_megatron_config = copy.deepcopy(megatron_config)
             # this_megatron_config.virtual_pipeline_model_parallel_rank = vpp_rank
-            parallel_model = get_parallel_model_from_config(config=actor_model_config,
-                                                            megatron_config=megatron_config,
-                                                            pre_process=pre_process,
-                                                            post_process=post_process,
-                                                            value=False)
+            share_embeddings_and_output_weights = getattr(actor_model_config, "tie_word_embeddings", False)
+            parallel_model = get_parallel_model_from_config(
+                config=actor_model_config,
+                megatron_config=megatron_config,
+                pre_process=pre_process,
+                post_process=post_process,
+                share_embeddings_and_output_weights=share_embeddings_and_output_weights,
+                value=False)
             parallel_model.cuda()
             return parallel_model
 
@@ -509,6 +513,7 @@ class CriticWorker(MegatronWorker):
                                                             megatron_config=megatron_config,
                                                             pre_process=pre_process,
                                                             post_process=post_process,
+                                                            share_embeddings_and_output_weights=False,
                                                             value=True)
             parallel_model.cuda()
             return parallel_model
@@ -673,6 +678,7 @@ class RewardModelWorker(MegatronWorker):
                                                             megatron_config=megatron_config,
                                                             pre_process=pre_process,
                                                             post_process=post_process,
+                                                            share_embeddings_and_output_weights=False,
                                                             value=True)
             parallel_model.cuda()
             return parallel_model
