@@ -26,19 +26,19 @@ if __name__ == '__main__':
             input = example.pop('input')
             context = example.pop('context')
             # question = example.pop('question')
-            question = f"The following are given passages.\n{context}\n\n Question: {input}"
+            # question = f"The following are given passages.\n{context}\n\n Question: {input}"
 
             solution = example.pop('answers')
             data = {
                 "data_source": f"custom_longcontextqa_{data_source}",
                 "prompt": [
                     {
-                        "role": "system",
-                        "content": "Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer inside \\boxed{ }.\nKeep your reasoning rigorous, precise, and succinct."
+                        # "role": "system",
+                        # "content": "Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer inside \\boxed{ }.\nKeep your reasoning rigorous, precise, and succinct."
                     },
                     {
                     "role": "user",
-                    "content": question
+                    "content": f"Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer.\nKeep your reasoning rigorous, precise, and succinct.\n\nThe following are given passages.\n{context}\n\nQuestion: {input}"
                 }],
                 "ability": "longcontext_qa",
                 "reward_model": {
