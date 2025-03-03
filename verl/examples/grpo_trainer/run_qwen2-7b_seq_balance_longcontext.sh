@@ -4,8 +4,11 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 
 # train_files="['~/r1_130k/train.parquet']"
 # test_files="['~/r1_130k/test.parquet']"
-train_files="['~/data/hotpotqa/train.parquet']"
-test_files="['~/data/hotpotqa/test.parquet']"
+# model_path="/mnt/longcontext/models/siyuan/llama3/"
+# train_files="['/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/musique10000_seq8192/train.parquet']"
+# test_files="['/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/musique10000_seq8192/test.parquet']"
+train_files="['/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/merged_data_deepscaler_openr1_130k_5000/train.parquet', '/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/musique5000_seq8192/train.parquet', '/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/hotpotqa5000_seq8192/train.parquet']"
+test_files="['/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/merged_data_deepscaler_openr1_130k_5000/test.parquet', '/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/musique5000_seq8192/test.parquet', '/mnt/longcontext/models/siyuan/rl_datasets/rl_three/no_system/hotpotqa5000_seq8192/test.parquet']"
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -37,11 +40,11 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_grpo_rej_test' \
-    trainer.experiment_name='qwen2_7b_function_rm_kl1e-3' \
+    trainer.experiment_name='qwen2_7b_datamix555' \
     ++trainer.val_before_train=False \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq=5 \
     trainer.test_freq=5 \
     trainer.reward_rejection_sampling=True \
-    trainer.total_epochs=15 $@
+    trainer.total_epochs=1 $@
