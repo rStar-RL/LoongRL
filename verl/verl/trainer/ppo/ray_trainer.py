@@ -24,6 +24,7 @@ from enum import Enum
 from pprint import pprint
 from typing import Type, Dict
 from copy import deepcopy
+from collections import defaultdict
 
 import numpy as np
 from codetiming import Timer
@@ -175,6 +176,46 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
     else:
         raise NotImplementedError
     return data
+
+def reward_rejection_sampling(batch: DataProto, rollout_worldsize: int, metrics=None):
+    index = batch.non_tensor_batch['uid']
+    rewards = batch.batch['token_level_rewards'].sum(dim=-1)
+    id2score = defaultdict(list)
+    idx2id = defaultdict(list)
+    bsz = index.shape[0]
+    valid_mask = torch.ones(bsz, dtype=torch.bool)
+    num_all_wrong = 0
+    num_all_right = 0
+    for i in range(bsz):
+        id2score[index[i]].append(rewards[i].item())
+        idx2id[index[i]].append(i)
+    for idx in id2score:
+        # check if all advantages are the same
+        # this happens when all rewards are wrong or right
+        if len(set(id2score[idx])) == 1 and len(id2score[idx]) > 1:
+            valid_mask[idx2id[idx]] = False
+            if id2score[idx][0] > 0.5:
+                num_all_right += 1
+            else:
+                num_all_wrong += 1
+    # if no valid samples, return None
+    if not valid_mask.any():
+        return None
+    # keep only the valid samples
+    batch = DataProto.from_dict(tensors=batch[valid_mask].batch, non_tensors=batch[valid_mask].non_tensor_batch, meta_info=batch[valid_mask].meta_info)
+    max_batch_size = (batch.batch['token_level_scores'].size(0) // rollout_worldsize) * rollout_worldsize
+    if not max_batch_size:
+        return None
+    size_mask = torch.zeros(batch.batch['token_level_scores'].size(0), dtype=torch.bool)
+    size_mask[:max_batch_size] = True
+    batch = DataProto.from_dict(tensors=batch[size_mask].batch, non_tensors=batch[size_mask].non_tensor_batch, meta_info=batch[size_mask].meta_info)
+    if metrics is not None:
+        metrics['critic/num_all_wrong'] = num_all_wrong
+        metrics['critic/num_all_right'] = num_all_right
+        metrics['critic/num_responses'] = batch.batch['token_level_scores'].size(0)
+    return batch
+
+
 
 
 def reduce_metrics(metrics: dict):
@@ -931,6 +972,13 @@ class RayPPOTrainer(object):
                                                   gamma=self.config.algorithm.gamma,
                                                   lam=self.config.algorithm.lam,
                                                   num_repeat=self.config.actor_rollout_ref.rollout.n)
+                        # perform reward_based rejection sampling
+                        # note that reward_based rejection sampling only works in GRPO
+                        if self.config.algorithm.adv_estimator == 'grpo' and self.config.trainer.get('reward_rejection_sampling', False):
+                            batch = reward_rejection_sampling(batch, self.actor_rollout_wg.world_size, metrics=metrics)
+                            if batch is None:
+                                continue
+                            
 
                     # update critic
                     if self.use_critic:

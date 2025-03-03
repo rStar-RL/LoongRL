@@ -13,10 +13,15 @@ if __name__ == '__main__':
     parser.add_argument('--data_source')
     parser.add_argument('--local_dir', default='~/data/math')
     parser.add_argument('--hdfs_dir', default=None)
+    parser.add_argument('--start_index', default=0, type=int)
+    parser.add_argument('--end_index', default=-1, type=int)
 
     args = parser.parse_args()
 
     dataset = datasets.Dataset.from_json(args.data_source)
+    if args.end_index == -1:
+        args.end_index = len(dataset)
+    dataset = dataset.select(range(args.start_index, args.end_index))
     data_source = Path(args.data_source).stem
 
     # add a row to each data item that represents a unique id
@@ -26,19 +31,21 @@ if __name__ == '__main__':
             input = example.pop('input')
             context = example.pop('context')
             # question = example.pop('question')
-            # question = f"The following are given passages.\n{context}\n\n Question: {input}"
+            question = f"The following are given passages.\n{context}\n\n Question: {input}"
 
             solution = example.pop('answers')
             data = {
                 "data_source": f"custom_longcontextqa_{data_source}",
                 "prompt": [
                     {
-                        # "role": "system",
-                        # "content": "Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer inside \\boxed{ }.\nKeep your reasoning rigorous, precise, and succinct."
+                        "role": "system",
+                        # 'content': '',
+                        "content": "Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer inside \\boxed{ }.\nKeep your reasoning rigorous, precise, and succinct."
                     },
                     {
                     "role": "user",
-                    "content": f"Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer.\nKeep your reasoning rigorous, precise, and succinct.\n\nThe following are given passages.\n{context}\n\nQuestion: {input}"
+                    # "content": f"Answer the question based on the given passages following these steps: \n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a clear, step-by-step explanation of your reasoning, ensuring each step is backed by the passages;\nEnd your response with a final line starting with `Answer:` followed by your answer.\nKeep your reasoning rigorous, precise, and succinct.\n\nThe following are given passages.\n{context}\n\nQuestion: {input}"
+                    "content": question,
                 }],
                 "ability": "longcontext_qa",
                 "reward_model": {
