@@ -44,7 +44,7 @@ if __name__ == '__main__':
                     # },
                     {
                     "role": "user",
-                    "content": f"Answer the question based on the given passages following these steps:\n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a rigorous, step-by-step explanation of your reasoning, ensuring each step is backed by the passages.\nEnd your response with a final line starting with `Answer:` followed by your answer;\nKeep the answer precise and succinct.\n\nThe following are given passages.\n{context}\n\nQuestion: {input}"
+                    "content": f"Answer the question based on the given passages following these steps:\n\nStart with a `<think>` and break down the question into key elements;\nAs you reason, use the marker `wait` to pause and reflect on details when necessary;\nProvide a rigorous, step-by-step explanation of your reasoning, ensuring each step is backed by the passages.\nEnd your response with a final line starting with `Answer:` followed by your answer inside \\boxed{{}};\nKeep the answer precise and succinct.\n\nThe following are given passages.\n{context}\n\nQuestion: {input}"
                     # "content": question,
                 }],
                 "ability": "longcontext_qa",
