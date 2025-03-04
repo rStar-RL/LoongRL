@@ -14,13 +14,13 @@
 
 from verl import DataProto
 import torch
-import concurrent.futures
-import threading
-from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
-from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 from verl.utils.reward_score import _default_compute_score
+from verl.utils.reward_score.code_server import extract_solution, validate_response_structure, run
+import time
+from collections import defaultdict
+import random
 
 
 class ServerRewardManager():
@@ -31,6 +31,10 @@ class ServerRewardManager():
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
+        # tune this value to get better performance
+        self.batch_size = 5
+        self.format_reward = 1.0
+        self.print_num = 128
 
     def __call__(self, data: DataProto):
 
@@ -40,12 +44,11 @@ class ServerRewardManager():
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
 
-        already_print_data_sources = {}
-        lock = threading.Lock()
-        print_lock = threading.Lock()
-
-        def process_item(i, data_item):
-            nonlocal already_print_data_sources, reward_tensor
+        info = defaultdict(int)
+        solution_strs, ground_truths, valid_response_lens = [], [], []
+        answer_texts, format_scores, debug_info = [], [], []
+        for i in range(len(data)):
+            data_item = data[i]
 
             prompt_ids = data_item.batch['prompts']
             prompt_length = prompt_ids.shape[-1]
@@ -61,36 +64,42 @@ class ServerRewardManager():
             sequences_str = self.tokenizer.decode(sequences)
 
             ground_truth = data_item.non_tensor_batch['reward_model']['ground_truth']
-            data_source = data_item.non_tensor_batch['data_source']
+            debug_str = []
+            debug_str.append("\n" + "="*80)
+            debug_str.append(" Processing New Sample ".center(80, '='))
+            answer_text, processed_str, question_str = extract_solution(sequences_str)
+            debug_str.append(f"\n[Question]\n{question_str}")
+            debug_str.append(f"\n[Model Response]\n{processed_str}")
+            format_correct, format_info = validate_response_structure(processed_str)
+            debug_str.extend(format_info)
+            format_score = self.format_reward if format_correct else -abs(self.format_reward)
+            debug_str.append(f" Final Score ".center(80, '-'))
+            debug_str.append(f"  Format Score: {format_score}")
+            info[len(ground_truth['input'])] += 1
 
-            score, compute_score_debug_str = self.compute_score(
-                data_source=data_source,
-                solution_str=sequences_str,
-                ground_truth=ground_truth,
-            )
-            with print_lock:
-                print(compute_score_debug_str)
+            solution_strs.append(sequences_str)
+            ground_truths.append(ground_truth)
+            valid_response_lens.append(valid_response_length)
+            answer_texts.append(answer_text)
+            format_scores.append(format_score)
+            debug_info.append(debug_str)
 
-            reward_tensor[i, valid_response_length - 1] = score
+        info = dict(sorted(info.items()))
+        print('SeverRewardManager: test num info', info)
 
-            with lock:
-                if data_source not in already_print_data_sources:
-                    already_print_data_sources[data_source] = 0
-                current_count = already_print_data_sources[data_source]
-
-                if current_count < self.num_examine:
-                    already_print_data_sources[data_source] += 1
-                    need_print = True
-                else:
-                    need_print = False
-
-            if need_print:
-                with print_lock:
-                    print(sequences_str)
-
-        with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(process_item, i, data[i]) for i in range(len(data))]
-            for future in futures:
-                future.result()
+        print('SeverRewardManager: judge start')
+        start_time = time.time()
+        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            futures = [executor.submit(run, answer_text, ground_truth, self.batch_size) for answer_text, ground_truth in zip(answer_texts, ground_truths)]
+            for i, future in enumerate(futures):
+                score = future.result()
+                total_score = score + format_scores[i]
+                reward_tensor[i, valid_response_lens[i] - 1] = total_score
+                debug_info[i].append(f"  Answer Score: {score}")
+                debug_info[i].append(f"  Total Score: {total_score}")
+        end_time = time.time()
+        print('SeverRewardManager: judge time:', end_time - start_time, 's')
+        print_info = random.sample(debug_info, min(self.print_num, len(debug_info)))
+        for response_info in print_info:
+            print('\n'.join(response_info))
         return reward_tensor
-

@@ -1,69 +1,67 @@
 import re
-import hashlib
 from typing import Dict, Tuple, Optional
-import subprocess
-import json
-import time
-import random
-import signal
-import sys
-import os
-import concurrent.futures
 import requests
 
 
-def send_request(language, solution, input_data, expected_output):
-    url = 'http://localhost:8000/judge'
-    data = {
-        'type': language,
-        'solution': solution,
-        'input': input_data,
-        'expected_output': expected_output
-    }
-    response = requests.post(url, json=data)
-    response_json = response.json()
+def send_request(language, solution, inputs, outputs):
+    try:
+        url = 'http://localhost:8000/judge/batch'
+        submissions = []
+        for input, output in zip(inputs, outputs):
+            submissions.append({
+                "type": language,
+                "solution": solution,
+                "input": input,
+                "expected_output": output
+            })
+        data = {
+            "type": "batch",
+            "submissions": submissions
+        }
+        response = requests.post(url, json=data)
+        response_json = response.json()
+    except Exception as e:
+        print(f"Error: {e}")
+        response_json = {'success': False, 'error': str(e)}
     return response_json
 
 
-class OnlineJudge(object):
-    def __init__(self):
-        pass
+def check_language(code_string):
+    # TODO: support more languages
+    if code_string.find("#include") != -1:
+        return "cpp"
+    return "python"
 
-    def check_language(self, code_string):
-        # TODO: support more languages
-        if code_string.find("#include") != -1:
-            return "cpp"
-        return "python"
-    
-    def run(self, code_string, test_cases):
-        all_tests = 0
-        correct_tests = 0
-        input_case = test_cases["input"]
-        output_case = test_cases["output"]
-        cases = []
-        for i in range(len(input_case)):
-            cases.append((str(input_case[i]), str(output_case[i])))
 
-        all_tests = len(cases)
+def run(code_string, test_cases, batch_size):
+    if code_string is None:
+        return 0
 
-        language = self.check_language(code_string)
-        for (one_in, one_out) in cases:
-            response = send_request(language, code_string, one_in, one_out)
-            if not response['success']:
-                break
-            else:
+    correct_tests = 0
+    input_case = test_cases["input"]
+    output_case = test_cases["output"]
+    cases = []
+    for i in range(len(input_case)):
+        cases.append((str(input_case[i]), str(output_case[i])))
+
+    if not cases:
+        return 0
+
+    language = check_language(code_string)
+    for i in range(0, len(cases), batch_size):
+        cases_batch = cases[i:min(i + batch_size, len(cases))]
+        response = send_request(language, code_string, [case[0] for case in cases_batch], [case[1] for case in cases_batch])
+        results = response['results']
+        detect_fail = False
+        for result in results:
+            if result['success']:
                 correct_tests += 1
+            else:
+                detect_fail = True
+        if detect_fail:
+            break
 
-        if all_tests == 0:
-            return 0
-        return int(5.0 * correct_tests / all_tests)
-    
-    def score(self, pid, code_string):
-        all_tests, correct_tests = self.run(pid, code_string)
-        return int(5.0 * correct_tests / all_tests)
-
-
-oj = OnlineJudge()
+    return 5.0 * correct_tests / len(cases)
 
 
 def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
@@ -161,9 +159,6 @@ def compute_score(solution_str: str,
     debug_str.append("\n" + "="*80)
     debug_str.append(" Processing New Sample ".center(80, '='))
     
-    # Parse ground truth data
-    solution_text = ""
-
     # Extract model answer
     answer_text, processed_str, question_str = extract_solution(solution_str)
     debug_str.append(f"\n[Question]\n{question_str}")
@@ -177,9 +172,7 @@ def compute_score(solution_str: str,
     debug_str.append(f"  Format score: {format_score}")
 
     # Validate answer content
-    if answer_text is None:
-        answer_text = 'print(\'hello\')'
-    answer_score = oj.run(answer_text, ground_truth)
+    answer_score = run(answer_text, ground_truth, 1)
 
     total_score = format_score + answer_score
     debug_str.append("\n" + "-"*80)
@@ -192,6 +185,5 @@ def compute_score(solution_str: str,
     return total_score, "\n".join(debug_str)
 
 if __name__ == "__main__":
-    oj = OnlineJudge()
-    print(oj.run('print(sum(map(int, input().split())))', {'input': ['4 5'], 'output': ['9']}))
-    print(oj.run("#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n", {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}))
+    print(run('print(sum(map(int, input().split())))', {'input': ['4 5'], 'output': ['9']}, 5))
+    print(run("#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n", {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}, 5))
