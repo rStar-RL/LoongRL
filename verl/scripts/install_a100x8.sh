@@ -20,6 +20,7 @@ cd rStar-RL/verl
 pip install -e .
 cd ..
 
+pip install pandas
 pip install wandb
 
 bash patches/ray_patch/patch.sh
