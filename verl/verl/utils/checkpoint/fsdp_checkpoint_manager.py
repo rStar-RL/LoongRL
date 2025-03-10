@@ -106,7 +106,8 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         # remove previous local_path
         # TODO: shall we remove previous ckpt every save?
         if remove_previous_ckpt:
-            self.remove_previous_save_local_path()
+            # keep at most two latest checkpoint to prevent the failure during saving new checkpoint, but the previous checkpoint has already be deleted.
+            self.remove_previous_save_local_path(keep_number=2)
         local_path = self.local_mkdir(local_path)
         torch.distributed.barrier()
 
@@ -155,4 +156,4 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         torch.distributed.barrier()
 
-        self.previous_save_local_path = local_path
+        self.previous_save_local_paths.append(local_path)

@@ -593,6 +593,7 @@ class RayPPOTrainer(object):
         sample_inputs = []
         sample_outputs = []
         sample_scores = []
+        ground_truth = []
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
@@ -603,8 +604,9 @@ class RayPPOTrainer(object):
 
             # Store original inputs
             input_ids = test_batch.batch['input_ids']
-            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in input_ids]
+            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in input_ids]
             sample_inputs.extend(input_texts)
+            ground_truth.extend([rw['ground_truth'] for rw in test_batch.non_tensor_batch['reward_model']])
 
             test_gen_batch = test_batch.pop(['input_ids', 'attention_mask', 'position_ids'])
             test_gen_batch.meta_info = {
@@ -624,7 +626,7 @@ class RayPPOTrainer(object):
 
             # Store generated outputs
             output_ids = test_output_gen_batch.batch['responses']
-            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in output_ids]
+            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in output_ids]
             sample_outputs.extend(output_texts)
 
             test_batch = test_batch.union(test_output_gen_batch)
@@ -640,6 +642,9 @@ class RayPPOTrainer(object):
             data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
 
         self._maybe_log_val_generations_to_wandb(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
+
+        if self.config.trainer.save_test_log:
+            self._save_generation_score(sample_inputs, sample_outputs, ground_truth, scores, 'test_gen_log')
 
         reward_tensor = torch.cat(reward_tensor_lst, dim=0).sum(-1).cpu()  # (batch_size,)
         data_sources = np.concatenate(data_source_lst, axis=0)
@@ -724,6 +729,15 @@ class RayPPOTrainer(object):
         # we should create rollout at the end so that vllm can have a better estimation of kv cache memory
         self.actor_rollout_wg = all_wg['actor_rollout']
         self.actor_rollout_wg.init_model()
+
+    def _save_generation_score(self, sample_inputs, sample_outputs, ground_truth, scores, sub_folder, pad_token="<|endoftext|>"):
+        import json
+        from pathlib import Path
+        samples = [{'input': a.replace(pad_token, ""), 'response': b.replace(pad_token, ""), 'ground_truth': c, 'score': d} for a, b, c, d in zip(sample_inputs, sample_outputs, ground_truth, scores)]
+        local_global_step_log_folder = Path(self.config.trainer.default_local_dir, sub_folder)
+        local_global_step_log_folder.mkdir(parents=True, exist_ok=True)
+        with (local_global_step_log_folder / f'global_step_{self.global_steps}.json').open('w') as f:
+            json.dump(samples, f, indent=4)
 
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
@@ -931,6 +945,13 @@ class RayPPOTrainer(object):
                         # we combine with rule-based rm
                         reward_tensor = self.reward_fn(batch)
                         batch.batch['token_level_scores'] = reward_tensor
+
+                        if self.config.trainer.save_train_log:
+                            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['input_ids']]
+                            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['responses']]
+                            ground_truth = [rw['ground_truth'] for rw in batch.non_tensor_batch['reward_model']]
+                            scores = reward_tensor.sum(-1).cpu().tolist()
+                            self._save_generation_score(input_texts, output_texts, ground_truth, scores, 'train_gen_log')
 
                         # compute rewards. apply_kl_penalty if available
                         if not self.config.actor_rollout_ref.actor.get('use_kl_loss', False):

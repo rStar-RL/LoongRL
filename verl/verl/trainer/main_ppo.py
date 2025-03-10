@@ -31,7 +31,12 @@ def run_ppo(config, compute_score=None):
         ray.init(runtime_env={'env_vars': {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN'}})
 
     # we need to set RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES=0 to enable ray set visible devices for tasks
-    ray.get(main_task.options(runtime_env={'env_vars': {'RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES': '0'}}).remote(config, compute_score))
+    runtime_env = {
+        'env_vars': {'RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES': '0'},
+    }
+    if config.trainer.get("conda_env", None):
+        runtime_env['conda'] = config.trainer.get("conda_env")
+    ray.get(main_task.options(runtime_env=runtime_env).remote(config, compute_score))
 
 
 @ray.remote(num_cpus=1)  # please make sure main_task is not scheduled on head
@@ -112,7 +117,7 @@ def main_task(config, compute_score=None):
         reward_manager_cls = ServerRewardManager
     else:
         raise NotImplementedError
-    reward_fn = reward_manager_cls(tokenizer=tokenizer, num_examine=1, compute_score=compute_score)
+    reward_fn = reward_manager_cls(tokenizer=tokenizer, num_examine=0, compute_score=compute_score)
 
     # Note that we always use function-based RM for validation
     val_reward_fn = reward_manager_cls(tokenizer=tokenizer, num_examine=1, compute_score=compute_score)

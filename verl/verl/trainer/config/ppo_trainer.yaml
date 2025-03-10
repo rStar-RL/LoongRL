@@ -167,6 +167,8 @@ trainer:
   resume_mode: auto # or auto or resume_path if 
   resume_from_path: False
   test_freq: -1
+  save_train_log: True
+  save_test_log: True
   critic_warmup: 0
   default_hdfs_dir: null
   remove_previous_ckpt_in_save: False
