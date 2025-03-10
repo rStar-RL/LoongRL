@@ -1,4 +1,5 @@
 import re
+import os
 
 
 
@@ -11,14 +12,26 @@ def compute_score(solution_str, ground_truth):
     Returns:
         float: Score
     """
-    retval = 0
-    # strip
     solution_str = solution_str.strip()
-    # extract \boxed part
-    if type(ground_truth) == str:
+    reward_calc_type = os.getenv("REWARD_CALC_TYPE", "pure_exact_match")
+    if reward_calc_type == "pure_exact_match":
+        retval = _pure_exact_match_in_string(solution_str, ground_truth)
+    elif reward_calc_type == "f1_score":
+        raise NotImplementedError("F1 score is not implemented yet")
+    elif reward_calc_type == "format_exact_match":
+        retval = _format_exact_match_in_string(solution_str, ground_truth)
+    else:
+        raise ValueError(f"Unknown reward_calc_type: {reward_calc_type}")
+
+    return retval
+    
+        
+def _pure_exact_match_in_string(solution_str, ground_truth):
+    if isinstance(ground_truth, str):  # More Pythonic way to check type
         ground_truth = [ground_truth]
-    # ground truth comes in the form of a list 
-    # any match with the list item is considered correct
+    
+    retval = 0  # Default return value
+    
     for truth in ground_truth:
         try:
             boxed_part = last_boxed_only_string(solution_str)
@@ -26,10 +39,45 @@ def compute_score(solution_str, ground_truth):
                 pred = remove_boxed(boxed_part)
                 if is_gt_in_pred(pred, truth):
                     retval = 1.0
+                    return retval  # Early return if a match is found
         except Exception as e:
-            print(e)
-    return retval
-    
+            print(f"Error encountered: {e}")
+            return retval  # Return 0 if an exception occurs
+
+    return retval  # Return 0 if no match is found
+
+def _format_exact_match_in_string(solution_str, ground_truth):
+    """
+    export REWARD_CALC_TYPE=format_exact_match
+    export ANSWER_OVER_FLOW_LIMIT=128
+    export EOT_OVER_FLOW_LIMIT=32
+    """
+    if isinstance(ground_truth, str):
+        ground_truth = [ground_truth]
+    max_retval = 0
+    for truth in ground_truth:
+        try:
+            boxed_part = last_boxed_only_string(solution_str)
+            retval = 0
+            if boxed_part is not None:
+                pred = remove_boxed(boxed_part)
+                assert isinstance(pred, str), f"pred should be a string, got {type(pred)} instead"
+                assert isinstance(truth, str), f"truth should be a string, got {type(truth)} instead"
+                if is_gt_in_pred(pred, truth):
+                    retval = 1.0
+                    answer_over_flow_limit = int(os.getenv("ANSWER_OVER_FLOW_LIMIT", 128))
+                    if len(pred) - len(truth) > answer_over_flow_limit:
+                        retval -= 1.0
+                    eot_over_flow_limit = int(os.getenv("EOT_OVER_FLOW_LIMIT", 32))
+                    if len(solution_str) - (solution_str.rfind(pred)+len(pred)) > eot_over_flow_limit:
+                        retval -= 1.0
+                    max_retval = max(max_retval, retval)
+                    
+        except Exception as e:
+            print(f"Error encountered: {e}")
+            return max_retval
+                
+    return max_retval
 
 
 
