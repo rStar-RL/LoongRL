@@ -38,7 +38,7 @@ class Tracking(object):
 
         if 'tracking' in default_backend or 'wandb' in default_backend:
             import wandb
-            wandb.init(project=project_name, name=experiment_name, config=config, reinit=True)
+            wandb.init(project=project_name, name=experiment_name, config=config, reinit=True, id=project_name+experiment_name)
             # use reinit=True to avoid multiple runs in the same process
             self.logger['wandb'] = wandb
 
