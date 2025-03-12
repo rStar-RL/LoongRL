@@ -18,11 +18,11 @@ def send_request(language, solution, inputs, outputs):
             "type": "batch",
             "submissions": submissions
         }
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=data, timeout=600)
         response_json = response.json()
     except Exception as e:
         print(f"Error: {e}")
-        response_json = {'success': False, 'error': str(e)}
+        response_json = {'results': [{'success': False, 'error': str(e)}]}
     return response_json
 
 
@@ -81,7 +81,7 @@ def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
     matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
     
     if not matches:
-        print("[Error] No valid answer tags found")
+        # print("[Error] No valid answer tags found")
         return None, processed_str, question_str
         
     final_answer = matches[-1].group(1).strip()
