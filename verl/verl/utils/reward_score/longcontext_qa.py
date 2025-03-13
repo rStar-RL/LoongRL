@@ -51,7 +51,11 @@ def _format_exact_match_in_string(solution_str, ground_truth):
     export REWARD_CALC_TYPE=format_exact_match
     export ANSWER_OVER_FLOW_LIMIT=128
     export EOT_OVER_FLOW_LIMIT=32
+    export MAX_BOXED_LIMIT=1
+    export PUNISH_MULTIPLE_BRACES=1
     """
+    max_boxed_limit = int(os.getenv("MAX_BOXED_LIMIT", 1))
+    punish_multiple_braces = int(os.getenv("PUNISH_MULTIPLE_BRACES", 1))
     if isinstance(ground_truth, str):
         ground_truth = [ground_truth]
     max_retval = 0
@@ -59,8 +63,14 @@ def _format_exact_match_in_string(solution_str, ground_truth):
         try:
             boxed_part = last_boxed_only_string(solution_str)
             retval = 0
+            if max_boxed_limit > 0:
+                if solution_str.count("\\boxed") > max_boxed_limit:
+                    return 0
             if boxed_part is not None:
                 pred = remove_boxed(boxed_part)
+                if punish_multiple_braces > 0:
+                    if solution_str.count("{") > 1 or solution_str.count("}") > 1 or solution_str.count("\\") > 1:
+                        return 0
                 assert isinstance(pred, str), f"pred should be a string, got {type(pred)} instead"
                 assert isinstance(truth, str), f"truth should be a string, got {type(truth)} instead"
                 if is_gt_in_pred(pred, truth):
