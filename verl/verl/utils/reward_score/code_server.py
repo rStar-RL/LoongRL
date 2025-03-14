@@ -3,27 +3,56 @@ from typing import Dict, Tuple, Optional
 import requests
 
 
-def send_request(language, solution, inputs, outputs):
+def judge_batch(submissions):
+    url = 'http://localhost:8000/judge/batch'
+    results = [None] * len(submissions)
+
     try:
-        url = 'http://localhost:8000/judge/batch'
-        submissions = []
-        for input, output in zip(inputs, outputs):
+        while True:
+            candidates = []
+            idxs = []
+            for idx, (result, submission) in enumerate(zip(results, submissions)):
+                if result is None:
+                    candidates.append(submission)
+                    idxs.append(idx)
+
+            if not candidates:
+                break
+
+            data = {
+                "type": "batch",
+                "submissions": candidates
+            }
+            response = requests.post(url, json=data, timeout=60)
+            response_json = response.json()
+            for idx, result in zip(idxs, response_json['results']):
+                if result['success'] or result['reason'] != 'queue_timeout':
+                    results[idx] = result
+    except Exception as e:
+        print(f"Error: {e}")
+        for i in range(len(results)):
+            if results[i] is None:
+                results[i] = {'success': False, 'error': str(e)}
+    return results
+
+
+def send_request_batch_solutions(languages, solutions, cases):
+    submissions = []
+    for language, solution in zip(languages, solutions):
+        for in_case, out_case in cases:
             submissions.append({
                 "type": language,
                 "solution": solution,
-                "input": input,
-                "expected_output": output
+                "input": in_case,
+                "expected_output": out_case
             })
-        data = {
-            "type": "batch",
-            "submissions": submissions
-        }
-        response = requests.post(url, json=data, timeout=600)
-        response_json = response.json()
-    except Exception as e:
-        print(f"Error: {e}")
-        response_json = {'results': [{'success': False, 'error': str(e)}]}
-    return response_json
+
+    batch_results = judge_batch(submissions)
+    results = [[] for _ in range(len(solutions))]
+    for i, result in enumerate(batch_results):
+        results[i // len(cases)].append(result)
+
+    return results
 
 
 def check_language(code_string):
@@ -33,11 +62,12 @@ def check_language(code_string):
     return "python"
 
 
-def run(code_string, test_cases, batch_size):
-    if code_string is None:
-        return 0
-
-    correct_tests = 0
+def batch_judge(solutions, test_cases, batch_size):
+    """
+    Judge a batch of solutions against the test cases. Note solutions and test cases are
+    corresponding to a same problem.
+    Since the test number can be very large, we will do batch to speed up the process. 
+    """
     input_case = test_cases["input"]
     output_case = test_cases["output"]
     cases = []
@@ -45,23 +75,53 @@ def run(code_string, test_cases, batch_size):
         cases.append((str(input_case[i]), str(output_case[i])))
 
     if not cases:
-        return 0
+        return [0] * len(solutions)
 
-    language = check_language(code_string)
-    for i in range(0, len(cases), batch_size):
-        cases_batch = cases[i:min(i + batch_size, len(cases))]
-        response = send_request(language, code_string, [case[0] for case in cases_batch], [case[1] for case in cases_batch])
-        results = response['results']
-        detect_fail = False
-        for result in results:
-            if result['success']:
-                correct_tests += 1
-            else:
-                detect_fail = True
-        if detect_fail:
+    scores = [None] * len(solutions)
+    for i, solution in enumerate(solutions):
+        if solution is None:
+            scores[i] = 0
+
+    languages = []
+    for solution in solutions:
+        if solution is None:
+            languages.append(None)
+        else:
+            languages.append(check_language(solution))
+
+    test_bsz = max(1, batch_size // len(solutions))
+    for i in range(0, len(cases), test_bsz):
+        test_idxs = range(i, min(i + test_bsz, len(cases)))
+        cur_cases = [cases[idx] for idx in test_idxs]
+
+        cur_languages, cur_solutions, cur_idxs = [], [], []
+        for idx, solution in enumerate(solutions):
+            if scores[idx] is None:
+                cur_languages.append(languages[idx])
+                cur_solutions.append(solution)
+                cur_idxs.append(idx)
+        if not cur_solutions:
             break
 
-    return 5.0 * correct_tests / len(cases)
+        results = send_request_batch_solutions(cur_languages, cur_solutions, cur_cases)
+        # currently we stop when one test case fails
+        for test_results, idx in zip(results, cur_idxs):
+            detect_fail = False
+            pass_cnt = 0
+            for test_idx, result in zip(test_idxs, test_results):
+                if not result['success']:
+                    detect_fail = True
+                else:
+                    pass_cnt += 1
+            if detect_fail:
+                scores[idx] = pass_cnt + i
+
+    for i in range(len(scores)):
+        if scores[i] is None:
+            scores[i] = len(cases)
+
+    scores = [score / len(cases) for score in scores]
+    return scores
 
 
 def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
@@ -81,7 +141,6 @@ def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
     matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
     
     if not matches:
-        # print("[Error] No valid answer tags found")
         return None, processed_str, question_str
         
     final_answer = matches[-1].group(1).strip()
@@ -185,5 +244,6 @@ def compute_score(solution_str: str,
     return total_score, "\n".join(debug_str)
 
 if __name__ == "__main__":
-    print(run('print(sum(map(int, input().split())))', {'input': ['4 5'], 'output': ['9']}, 5))
-    print(run("#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n", {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}, 5))
+    # should print [1.0] and [1.0]
+    print(batch_judge(['print(sum(map(int, input().split())))'], {'input': ['4 5'], 'output': ['9']}, 5))
+    print(batch_judge(["#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n"], {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}, 5))

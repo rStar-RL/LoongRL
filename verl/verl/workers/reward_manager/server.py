@@ -17,10 +17,25 @@ import torch
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from verl.utils.reward_score import _default_compute_score
-from verl.utils.reward_score.code_server import extract_solution, validate_response_structure, run
+from verl.utils.reward_score.code_server import extract_solution, validate_response_structure, batch_judge
 import time
 from collections import defaultdict
 import random
+from typing import List
+from dataclasses import dataclass
+
+
+@dataclass
+class CodeRollout:
+    """The code info.
+    """
+
+    batch_idx: int
+    solution: str
+    format_score: float
+
+    valid_response_len: int
+    debug_info: List[str]
 
 
 class ServerRewardManager():
@@ -31,8 +46,8 @@ class ServerRewardManager():
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
-        # tune this value to get better performance
-        self.batch_size = 5
+        # when the batch size is large enough, all test cases will be judged for each submission
+        self.batch_size = 4
         self.format_reward = 1.0
         self.print_num = 128
 
@@ -44,9 +59,10 @@ class ServerRewardManager():
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
 
-        info = defaultdict(int)
-        solution_strs, ground_truths, valid_response_lens = [], [], []
-        answer_texts, format_scores, debug_info = [], [], []
+        test_num = defaultdict(int)
+        prompt2groundtruth = {}
+        prompt2rollouts = defaultdict(list)
+
         for i in range(len(data)):
             data_item = data[i]
 
@@ -54,6 +70,7 @@ class ServerRewardManager():
             prompt_length = prompt_ids.shape[-1]
             valid_prompt_length = data_item.batch['attention_mask'][:prompt_length].sum()
             valid_prompt_ids = prompt_ids[-valid_prompt_length:]
+            prompt = self.tokenizer.decode(valid_prompt_ids)
 
             response_ids = data_item.batch['responses']
             prompt_length = prompt_ids.shape[-1]
@@ -64,10 +81,19 @@ class ServerRewardManager():
             sequences_str = self.tokenizer.decode(sequences)
 
             ground_truth = data_item.non_tensor_batch['reward_model']['ground_truth']
+            test_num[len(ground_truth['input'])] += 1
+
             debug_str = []
             debug_str.append("\n" + "="*80)
             debug_str.append(" Processing New Sample ".center(80, '='))
+            # note: answer_text may be None if extract_solution fails
             answer_text, processed_str, question_str = extract_solution(sequences_str)
+
+            if prompt in prompt2groundtruth:
+                assert prompt2groundtruth[prompt] == ground_truth, f"Ground truth mismatch: {prompt2groundtruth[prompt]} != {ground_truth}"
+            else:
+                prompt2groundtruth[prompt] = ground_truth
+
             debug_str.append(f"\n[Question]\n{question_str}")
             debug_str.append(f"\n[Model Response]\n{processed_str}")
             format_correct, format_info = validate_response_structure(processed_str)
@@ -75,31 +101,48 @@ class ServerRewardManager():
             format_score = self.format_reward if format_correct else -abs(self.format_reward)
             debug_str.append(f" Final Score ".center(80, '-'))
             debug_str.append(f"  Format Score: {format_score}")
-            info[len(ground_truth['input'])] += 1
 
-            solution_strs.append(sequences_str)
-            ground_truths.append(ground_truth)
-            valid_response_lens.append(valid_response_length)
-            answer_texts.append(answer_text)
-            format_scores.append(format_score)
-            debug_info.append(debug_str)
+            current_rollout = CodeRollout(
+                batch_idx=i,
+                solution=answer_text,
+                format_score=format_score,
+                valid_response_len=valid_response_length,
+                debug_info=debug_str
+            )
+            prompt2rollouts[prompt].append(current_rollout)
 
-        info = dict(sorted(info.items()))
-        print('SeverRewardManager: test num info', info)
+        test_num = dict(sorted(test_num.items()))
+        print('SeverRewardManager: test num info', test_num)
 
         print('SeverRewardManager: judge start')
         start_time = time.time()
-        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-            futures = [executor.submit(run, answer_text, ground_truth, self.batch_size) for answer_text, ground_truth in zip(answer_texts, ground_truths)]
-            for i, future in enumerate(futures):
-                score = future.result()
-                total_score = score + format_scores[i]
-                reward_tensor[i, valid_response_lens[i] - 1] = total_score
-                debug_info[i].append(f"  Answer Score: {score}")
-                debug_info[i].append(f"  Total Score: {total_score}")
+        # Set this value carefully
+        # if there are N cpu cores available to judge problems, the max_workers
+        # should less than N / max(rollout_num, batch_size)
+        # also note that when the concurrency degree is high, solutions whose execution
+        # time is close to the timeout may receive lower scores.
+        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count() // 4) as executor:
+            futures = []
+            for prompt, rollouts in prompt2rollouts.items():
+                solutions = [rollout.solution for rollout in rollouts]
+                ground_truth = prompt2groundtruth[prompt]
+                futures.append((prompt, executor.submit(batch_judge, solutions, ground_truth, self.batch_size)))
+
+            for prompt, future in futures:
+                scores = future.result()
+                for score, rollout in zip(scores, prompt2rollouts[prompt]):
+                    i = rollout.batch_idx
+                    answer_score = 5.0 * score
+                    total_score = answer_score + rollout.format_score
+                    reward_tensor[i, rollout.valid_response_len - 1] = total_score
+                    rollout.debug_info.append(f"  Answer Score: {answer_score}")
+                    rollout.debug_info.append(f"  Total Score: {total_score}")
+
         end_time = time.time()
         print('SeverRewardManager: judge time:', end_time - start_time, 's')
-        print_info = random.sample(debug_info, min(self.print_num, len(debug_info)))
-        for response_info in print_info:
-            print('\n'.join(response_info))
+        # random select a rollout trace of each problem and print its debug info
+        for prompt, rollouts in prompt2rollouts.items():
+            random.shuffle(rollouts)
+            print("\n".join(rollouts[0].debug_info))
+            print("="*80)
         return reward_tensor
