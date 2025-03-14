@@ -18,10 +18,11 @@ import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from verl.utils.reward_score import _default_compute_score
 from verl.utils.reward_score.code_server import extract_solution, validate_response_structure, batch_judge
+from verl.workers.reward_manager.prime import PrimeRewardManager
 import time
 from collections import defaultdict
 import random
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 
 
@@ -51,7 +52,18 @@ class ServerRewardManager():
         self.format_reward = 1.0
         self.print_num = 128
 
+        # should refactor this function with server call
+        self._math_call = PrimeRewardManager(tokenizer, num_examine, compute_score)
+        self._math_reward_scale = 5.  # scale the math reward to be consistent with code reward
+
     def __call__(self, data: DataProto):
+        code_data_idxs, code_data, math_data_idxs, math_data = self._router_data(data)
+        code_reward = self._code_call(code_data) if code_data is not None else None
+        math_reward = self._math_call(math_data) if math_data is not None else None
+        reward_tensor = self._mergeback_reward(math_data_idxs, code_data_idxs, math_reward, code_reward)
+        return reward_tensor
+
+    def _code_call(self, data: DataProto):
 
         # If there is rm score, we directly return rm score. Otherwise, we compute via rm_score_fn
         if 'rm_scores' in data.batch.keys():
@@ -146,3 +158,29 @@ class ServerRewardManager():
             print("\n".join(rollouts[0].debug_info))
             print("="*80)
         return reward_tensor
+
+    def _router_data(self, data: DataProto):
+        code_data = {}
+        math_data = {}
+        for idx, sub_data in enumerate(data.chunk(len(data))):
+            if sub_data.non_tensor_batch['data_source'][0].startswith('custom_math_'):
+                math_data[idx] = sub_data
+            else:
+                code_data[idx] = sub_data
+        code_data_idxs = list(code_data.keys())
+        math_data_idxs = list(math_data.keys())
+        code_data = DataProto.concat([code_data[idx] for idx in code_data_idxs]) if len(code_data_idxs) > 0 else None
+        math_data = DataProto.concat([math_data[idx] for idx in math_data_idxs]) if len(math_data_idxs) > 0 else None
+        return code_data_idxs, code_data, math_data_idxs, math_data
+
+    def _mergeback_reward(self, math_data_idxs: List[int], code_data_idxs: List[int], math_reward: Optional[torch.Tensor], code_reward: Optional[torch.Tensor]):
+        if len(math_data_idxs) == 0:
+            return code_reward
+        if len(code_data_idxs) == 0:
+            return math_reward
+        assert len(math_data_idxs) == math_reward.shape[0]
+        assert len(code_data_idxs) == code_reward.shape[0]
+        math_reward = math_reward * self._math_reward_scale
+        reward = list(zip(math_data_idxs, math_reward.split(1, 0))) + list(zip(code_data_idxs, code_reward.split(1, 0)))
+        reward = sorted(reward, key=lambda x: x[0])
+        return torch.cat([r for _, r in reward], 0).contiguous()

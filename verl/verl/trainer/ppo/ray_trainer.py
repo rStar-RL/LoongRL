@@ -24,6 +24,7 @@ from enum import Enum
 from pprint import pprint
 from typing import Type, Dict
 from copy import deepcopy
+import json
 
 import numpy as np
 from codetiming import Timer
@@ -79,6 +80,13 @@ class ResourcePoolManager:
     def get_resource_pool(self, role: Role) -> RayResourcePool:
         """Get the resource pool of the worker_cls"""
         return self.resource_pool_dict[self.mapping[role]]
+
+
+class NumpyArrayListEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 import torch
@@ -606,7 +614,9 @@ class RayPPOTrainer(object):
             input_ids = test_batch.batch['input_ids']
             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in input_ids]
             sample_inputs.extend(input_texts)
-            ground_truth.extend([rw['ground_truth'] for rw in test_batch.non_tensor_batch['reward_model']])
+            # only save ground truth for custom_math_xxx data source
+            ground_truth.extend([(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+                                    for rw, data_src in zip(test_batch.non_tensor_batch['reward_model'], test_batch.non_tensor_batch['data_source'])])
 
             test_gen_batch = test_batch.pop(['input_ids', 'attention_mask', 'position_ids'])
             test_gen_batch.meta_info = {
@@ -737,7 +747,7 @@ class RayPPOTrainer(object):
         local_global_step_log_folder = Path(self.config.trainer.default_local_dir, sub_folder)
         local_global_step_log_folder.mkdir(parents=True, exist_ok=True)
         with (local_global_step_log_folder / f'global_step_{self.global_steps}.json').open('w') as f:
-            json.dump(samples, f, indent=4)
+            json.dump(samples, f, indent=4, cls=NumpyArrayListEncoder)
 
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
@@ -949,7 +959,9 @@ class RayPPOTrainer(object):
                         if self.config.trainer.save_train_log:
                             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['input_ids']]
                             output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['responses']]
-                            ground_truth = [rw['ground_truth'] for rw in batch.non_tensor_batch['reward_model']]
+                            # only save ground truth for custom_math_xxx data source
+                            ground_truth = [(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+                                                for rw, data_src in zip(batch.non_tensor_batch['reward_model'], batch.non_tensor_batch['data_source'])]
                             scores = reward_tensor.sum(-1).cpu().tolist()
                             self._save_generation_score(input_texts, output_texts, ground_truth, scores, 'train_gen_log')
 

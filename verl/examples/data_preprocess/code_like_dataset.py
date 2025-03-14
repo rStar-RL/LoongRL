@@ -9,7 +9,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_source')
-    parser.add_argument('--local_dir', default='~/data/math')
+    parser.add_argument('--local_dir', default='~/data/code')
     parser.add_argument('--hdfs_dir', default=None)
 
     args = parser.parse_args()
@@ -21,21 +21,15 @@ if __name__ == '__main__':
     def make_map_fn(split):
 
         def process_fn(example, idx):
-            question = example.pop('question')
-
-            solution = example.pop('ground_truth_answer')
+            prompt = example.pop('prompt')
+            # for code/math mix training, apply specific prompt for code role
+            # prompt = [p if p['role'] != 'user' else {'role': 'code', 'content': p['content']} for p in prompt]
+            reward_model = example.pop('reward_model')
             data = {
-                "data_source": f"custom_math_{data_source}",
-                "prompt": [{
-                    "role": "user",
-                    # "role": "math",  # for code/math mix training, apply specific prompt for math role
-                    "content": question
-                }],
-                "ability": "math",
-                "reward_model": {
-                    "style": "rule",
-                    "ground_truth": solution
-                },
+                "data_source": f"custom_code_{data_source}",
+                "prompt": prompt,
+                "ability": "code",
+                "reward_model": reward_model,
                 "extra_info": {
                     'split': split,
                     'index': idx
@@ -51,8 +45,8 @@ if __name__ == '__main__':
     local_dir = args.local_dir
     hdfs_dir = args.hdfs_dir
 
-    train_dataset.to_parquet(os.path.join(local_dir, 'train.parquet'))
-    test_dataset.to_parquet(os.path.join(local_dir, 'test.parquet'))
+    train_dataset.to_json(os.path.join(local_dir, 'train.json'))
+    test_dataset.to_json(os.path.join(local_dir, 'test.json'))
 
     if hdfs_dir is not None:
         makedirs(hdfs_dir)

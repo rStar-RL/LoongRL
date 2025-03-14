@@ -1,7 +1,7 @@
 set -x
 
-train_files="['/scratch/nishang/data/orz_math_57k_collected/train.parquet']"
-test_files="['/scratch/nishang/data/aime2024/test.parquet']"
+train_files="['/scratch/nishang/data/template_orz_math_57k/train.parquet', '/scratch/nishang/data/template_code_data/train.parquet']"
+test_files="['/scratch/nishang/data/template_aime2024/test.parquet']"
 
 PYTORCH_HIP_ALLOC_CONF=expandable_segments:True RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES=0 NCCL_TIMEOUT=1800 python3 -m verl.trainer.main_ppo \
     data.train_files="$train_files" \
@@ -10,8 +10,8 @@ PYTORCH_HIP_ALLOC_CONF=expandable_segments:True RAY_EXPERIMENTAL_NOSET_ROCR_VISI
     data.val_batch_size=1024 \
     data.max_prompt_length=1024 \
     data.max_response_length=7168 \
-    +data.chat_template=qwen_orz \
-    actor_rollout_ref.model.path=/scratch/nishang/Qwen2.5-7B \
+    +data.chat_template=qwen_orz_code_math \
+    actor_rollout_ref.model.path=/scratch/nishang/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0057 \
     actor_rollout_ref.model.use_remove_padding=True \
@@ -30,27 +30,27 @@ PYTORCH_HIP_ALLOC_CONF=expandable_segments:True RAY_EXPERIMENTAL_NOSET_ROCR_VISI
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     critic.optim.lr=5e-6 \
-    critic.optim.lr_warmup_steps_ratio=0.0057 \
+    critic.optim.lr_warmup_steps_ratio=0.00423 \
     critic.model.use_remove_padding=True \
-    critic.model.path=/scratch/nishang/Qwen2.5-7B \
+    critic.model.path=/scratch/nishang/Qwen2.5-7B-Instruct \
     critic.model.enable_gradient_checkpointing=True \
     critic.ppo_mini_batch_size=512 \
     critic.ppo_micro_batch_size_per_gpu=16 \
     critic.model.fsdp_config.param_offload=False \
     critic.model.fsdp_config.optimizer_offload=False \
-    reward_model.reward_manager=prime \
-    +reward_model.chat_template=qwen_orz \
+    reward_model.reward_manager=server \
+    +reward_model.chat_template=qwen_orz_code_math \
     algorithm.kl_ctrl.kl_coef=0.0 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
-    +trainer.val_before_train=True \
+    +trainer.val_before_train=False \
     +trainer.conda_env=rstar \
-    trainer.project_name='verl-orz' \
-    trainer.experiment_name='Qwen2.5-7B-math-PPO-orz-align-template' \
+    trainer.project_name='verl-orz-math-code' \
+    trainer.experiment_name='Qwen2.5-7B-Instruct-math-code-PPO-orz-align-template' \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq=10 \
     trainer.test_freq=5 \
-    trainer.default_local_dir=/scratch/nishang/verl_checkpoint/verl-orz/Qwen2.5-7B-math-PPO-orz-align-template \
+    trainer.default_local_dir=/scratch/nishang/verl_checkpoint/verl-orz-math-code/Qwen2.5-7B-Instruct-math-code-PPO-orz-align-template \
     trainer.remove_previous_ckpt_in_save=True \
-    trainer.total_epochs=20 $@ 2>&1 | tee Qwen2.5-7B-math-PPO-orz-align-template.log
+    trainer.total_epochs=20 $@ 2>&1 | tee Qwen2.5-7B-Instruct-math-code-PPO-orz-align-template.log
