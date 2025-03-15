@@ -69,7 +69,7 @@ def _format_exact_match_in_string(solution_str, ground_truth):
             if boxed_part is not None:
                 pred = remove_boxed(boxed_part)
                 if punish_multiple_braces > 0:
-                    if solution_str.count("{") > 1 or solution_str.count("}") > 1 or solution_str.count("\\") > 1:
+                    if pred.count("{") > 1 or pred.count("}") > 1 or pred.count("\\") > 1:
                         return 0
                 assert isinstance(pred, str), f"pred should be a string, got {type(pred)} instead"
                 assert isinstance(truth, str), f"truth should be a string, got {type(truth)} instead"
