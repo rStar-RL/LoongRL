@@ -65,12 +65,16 @@ def _format_exact_match_in_string(solution_str, ground_truth):
             retval = 0
             if max_boxed_limit > 0:
                 if solution_str.count("\\boxed") > max_boxed_limit:
-                    return 0
+                    raise ValueError(f"Too many boxed parts in solution_str: {solution_str.count('\\boxed')} > {max_boxed_limit}")
+                    # return 0
+
             if boxed_part is not None:
                 pred = remove_boxed(boxed_part)
                 if punish_multiple_braces > 0:
                     if pred.count("{") > 1 or pred.count("}") > 1 or pred.count("\\") > 1:
-                        return 0
+                        print(f"Multiple braces found in pred: {pred}")
+                        raise ValueError(f"Multiple braces found in pred: {pred}")
+                        # return 0
                 assert isinstance(pred, str), f"pred should be a string, got {type(pred)} instead"
                 assert isinstance(truth, str), f"truth should be a string, got {type(truth)} instead"
                 if is_gt_in_pred(pred, truth):
