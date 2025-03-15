@@ -65,7 +65,8 @@ def _format_exact_match_in_string(solution_str, ground_truth):
             retval = 0
             if max_boxed_limit > 0:
                 if solution_str.count("\\boxed") > max_boxed_limit:
-                    raise ValueError(f"Too many boxed parts in solution_str: {solution_str.count('\\boxed')} > {max_boxed_limit}")
+                    boxed_occurs = solution_str.count("\\boxed")
+                    raise ValueError(f"Too many boxed parts in solution_str: {boxed_occurs} > {max_boxed_limit}")
                     # return 0
 
             if boxed_part is not None:
