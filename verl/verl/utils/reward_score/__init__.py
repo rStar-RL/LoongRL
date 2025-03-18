@@ -44,7 +44,7 @@ def _default_compute_score(data_source, solution_str, ground_truth):
     elif data_source.startswith('custom_sentence_needle_'):
         from . import sentence_needle
         res = sentence_needle.compute_score(solution_str, ground_truth)
-    elif data_source.startswith('custom_ruler_niah_'):
+    elif data_source.startswith('custom_rulerniah_'):
         from . import ruler_multi
         res = ruler_multi.compute_score(solution_str, ground_truth)
     else:
