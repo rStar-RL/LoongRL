@@ -48,6 +48,7 @@ def _default_compute_score(data_source, solution_str, ground_truth):
         from . import ruler_multi
         res = ruler_multi.compute_score(solution_str, ground_truth)
     else:
+        print(f"data_source {data_source} not found")
         raise NotImplementedError
 
     if isinstance(res, (int, float, bool)):
