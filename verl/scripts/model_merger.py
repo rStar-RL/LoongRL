@@ -52,7 +52,7 @@ if __name__ == '__main__':
             break  
     assert world_size, "No model file with the proper format"
         
-    state_dict = torch.load(os.path.join(local_dir, f'model_world_size_{world_size}_rank_{rank}.pt'), map_location='cpu')
+    state_dict = torch.load(os.path.join(local_dir, f'model_world_size_{world_size}_rank_{rank}.pt'), map_location='cpu', weights_only=False)
     pivot_key = sorted(list(state_dict.keys()))[0]
     weight = state_dict[pivot_key]
     assert isinstance(weight, torch.distributed._tensor.DTensor)
