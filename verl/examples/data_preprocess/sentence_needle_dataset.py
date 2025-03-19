@@ -19,6 +19,27 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = datasets.Dataset.from_json(args.data_source)
+    # NOTE
+    # the sentence needle raw dataset needs reordering
+    # since the needle data with the same depth percent are clustered together
+    num_books = 1000
+    num_percents = 10
+    assert num_books * num_percents == len(dataset), "dataset length should be the size of num_books * num_percents"
+    # the original dataset is in the shape of dataset[percent][book].squeeze()
+    # reorder the dataset to dataset[book][percent].squeeze()
+    # Build the new index mapping
+    new_indices = []
+    for i in range(len(dataset)):
+        b = i // num_books    # which book
+        p = i % num_percents     # which percent
+        old_index = p * num_books + b
+        new_indices.append(old_index)
+
+    # Use Dataset.select(...) to produce the re-ordered dataset
+    dataset = dataset.select(new_indices)
+
+    # Check: first n_percents elements of reordered_dataset should all be book 0 but different percents
+
     if args.end_index == -1:
         args.end_index = len(dataset)
 
