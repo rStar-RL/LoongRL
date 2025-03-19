@@ -5,8 +5,6 @@ from pathlib import Path
 from verl.utils.hdfs_io import copy, makedirs
 import argparse
 
-from verl.utils.reward_score.math import remove_boxed, last_boxed_only_string
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -30,6 +28,7 @@ if __name__ == '__main__':
                 "data_source": f"custom_math_{data_source}",
                 "prompt": [{
                     "role": "user",
+                    # "role": "math",  # for code/math mix training, apply specific prompt for math role
                     "content": question
                 }],
                 "ability": "math",

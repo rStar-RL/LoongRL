@@ -1,69 +1,127 @@
 import re
-import hashlib
 from typing import Dict, Tuple, Optional
-import subprocess
-import json
-import time
-import random
-import signal
-import sys
-import os
-import concurrent.futures
 import requests
 
 
-def send_request(language, solution, input_data, expected_output):
-    url = 'http://localhost:8000/judge'
-    data = {
-        'type': language,
-        'solution': solution,
-        'input': input_data,
-        'expected_output': expected_output
-    }
-    response = requests.post(url, json=data)
-    response_json = response.json()
-    return response_json
+def judge_batch(submissions):
+    url = 'http://localhost:8000/judge/batch'
+    results = [None] * len(submissions)
 
+    try:
+        while True:
+            candidates = []
+            idxs = []
+            for idx, (result, submission) in enumerate(zip(results, submissions)):
+                if result is None:
+                    candidates.append(submission)
+                    idxs.append(idx)
 
-class OnlineJudge(object):
-    def __init__(self):
-        pass
-
-    def check_language(self, code_string):
-        # TODO: support more languages
-        if code_string.find("#include") != -1:
-            return "cpp"
-        return "python"
-    
-    def run(self, code_string, test_cases):
-        all_tests = 0
-        correct_tests = 0
-        input_case = test_cases["input"]
-        output_case = test_cases["output"]
-        cases = []
-        for i in range(len(input_case)):
-            cases.append((str(input_case[i]), str(output_case[i])))
-
-        all_tests = len(cases)
-
-        language = self.check_language(code_string)
-        for (one_in, one_out) in cases:
-            response = send_request(language, code_string, one_in, one_out)
-            if not response['success']:
+            if not candidates:
                 break
-            else:
-                correct_tests += 1
 
-        if all_tests == 0:
-            return 0
-        return int(5.0 * correct_tests / all_tests)
-    
-    def score(self, pid, code_string):
-        all_tests, correct_tests = self.run(pid, code_string)
-        return int(5.0 * correct_tests / all_tests)
+            data = {
+                "type": "batch",
+                "submissions": candidates
+            }
+            response = requests.post(url, json=data, timeout=60)
+            response_json = response.json()
+            for idx, result in zip(idxs, response_json['results']):
+                if result['success'] or result['reason'] != 'queue_timeout':
+                    results[idx] = result
+    except Exception as e:
+        print(f"Error: {e}")
+        for i in range(len(results)):
+            if results[i] is None:
+                results[i] = {'success': False, 'error': str(e)}
+    return results
 
 
-oj = OnlineJudge()
+def send_request_batch_solutions(languages, solutions, cases):
+    submissions = []
+    for language, solution in zip(languages, solutions):
+        for in_case, out_case in cases:
+            submissions.append({
+                "type": language,
+                "solution": solution,
+                "input": in_case,
+                "expected_output": out_case
+            })
+
+    batch_results = judge_batch(submissions)
+    results = [[] for _ in range(len(solutions))]
+    for i, result in enumerate(batch_results):
+        results[i // len(cases)].append(result)
+
+    return results
+
+
+def check_language(code_string):
+    # TODO: support more languages
+    if code_string.find("#include") != -1:
+        return "cpp"
+    return "python"
+
+
+def batch_judge(solutions, test_cases, batch_size):
+    """
+    Judge a batch of solutions against the test cases. Note solutions and test cases are
+    corresponding to a same problem.
+    Since the test number can be very large, we will do batch to speed up the process. 
+    """
+    input_case = test_cases["input"]
+    output_case = test_cases["output"]
+    cases = []
+    for i in range(len(input_case)):
+        cases.append((str(input_case[i]), str(output_case[i])))
+
+    if not cases:
+        return [0] * len(solutions)
+
+    scores = [None] * len(solutions)
+    for i, solution in enumerate(solutions):
+        if solution is None:
+            scores[i] = 0
+
+    languages = []
+    for solution in solutions:
+        if solution is None:
+            languages.append(None)
+        else:
+            languages.append(check_language(solution))
+
+    test_bsz = max(1, batch_size // len(solutions))
+    for i in range(0, len(cases), test_bsz):
+        test_idxs = range(i, min(i + test_bsz, len(cases)))
+        cur_cases = [cases[idx] for idx in test_idxs]
+
+        cur_languages, cur_solutions, cur_idxs = [], [], []
+        for idx, solution in enumerate(solutions):
+            if scores[idx] is None:
+                cur_languages.append(languages[idx])
+                cur_solutions.append(solution)
+                cur_idxs.append(idx)
+        if not cur_solutions:
+            break
+
+        results = send_request_batch_solutions(cur_languages, cur_solutions, cur_cases)
+        # currently we stop when one test case fails
+        for test_results, idx in zip(results, cur_idxs):
+            detect_fail = False
+            pass_cnt = 0
+            for test_idx, result in zip(test_idxs, test_results):
+                if not result['success']:
+                    detect_fail = True
+                else:
+                    pass_cnt += 1
+            if detect_fail:
+                scores[idx] = pass_cnt + i
+
+    for i in range(len(scores)):
+        if scores[i] is None:
+            scores[i] = len(cases)
+
+    scores = [score / len(cases) for score in scores]
+    return scores
 
 
 def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
@@ -83,7 +141,6 @@ def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
     matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
     
     if not matches:
-        print("[Error] No valid answer tags found")
         return None, processed_str, question_str
         
     final_answer = matches[-1].group(1).strip()
@@ -122,14 +179,16 @@ def validate_response_structure(processed_str: str) -> bool:
             debug_str.append(f"  [Error] {tag_str} appears {count} times (expected {expected_count})")
             validation_passed = False
 
+    legal_end_pattern1 = "</answer><|im_end|>"
+    legal_end_pattern2 = "</answer><|endoftext|>"
     # Verify tag order
     if (positions['think_start'] > positions['think_end'] or
         positions['think_end'] > positions['answer_start'] or
         positions['answer_start'] > positions['answer_end']):
         debug_str.append("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
         validation_passed = False
-    elif processed_str.strip()[-len("</answer><|endoftext|>"):] != "</answer><|endoftext|>":
-        debug_str.append("  [Error] Incorrect end token: Expected </answer><|endoftext|>")
+    elif not (processed_str.strip()[-len(legal_end_pattern1):] == legal_end_pattern1 or processed_str.strip()[-len(legal_end_pattern2):] == legal_end_pattern2):
+        debug_str.append("  [Error] Incorrect end token")
         validation_passed = False
     elif processed_str.strip()[0:len("<think>")] != "<think>":
         debug_str.append("  [Error] Incorrect start token: Expected <think>")
@@ -159,9 +218,6 @@ def compute_score(solution_str: str,
     debug_str.append("\n" + "="*80)
     debug_str.append(" Processing New Sample ".center(80, '='))
     
-    # Parse ground truth data
-    solution_text = ""
-
     # Extract model answer
     answer_text, processed_str, question_str = extract_solution(solution_str)
     debug_str.append(f"\n[Question]\n{question_str}")
@@ -175,9 +231,7 @@ def compute_score(solution_str: str,
     debug_str.append(f"  Format score: {format_score}")
 
     # Validate answer content
-    if answer_text is None:
-        answer_text = 'print(\'hello\')'
-    answer_score = oj.run(answer_text, ground_truth)
+    answer_score = run(answer_text, ground_truth, 1)
 
     total_score = format_score + answer_score
     debug_str.append("\n" + "-"*80)
@@ -190,6 +244,6 @@ def compute_score(solution_str: str,
     return total_score, "\n".join(debug_str)
 
 if __name__ == "__main__":
-    oj = OnlineJudge()
-    print(oj.run('print(sum(map(int, input().split())))', {'input': ['4 5'], 'output': ['9']}))
-    print(oj.run("#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n", {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}))
+    # should print [1.0] and [1.0]
+    print(batch_judge(['print(sum(map(int, input().split())))'], {'input': ['4 5'], 'output': ['9']}, 5))
+    print(batch_judge(["#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n  string s;\n  cin >> s;\n  for(int j = 0; j < 10000000; ++j) for (int i = 0; i < s.length(); i++) {\n    if (s[i] == s[i + 1] && s[i] == s[i + 2]) {\n      cout << s[i];\n      return 0;\n    }\n  }\n  cout << -1;\n  return 0;\n}\n"], {"input": [123123123129912857127437128819329319200] * 10, "output":[-1] * 10}, 5))

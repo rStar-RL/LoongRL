@@ -42,7 +42,7 @@ class BaseCheckpointManager:
     def __init__(self, model: FSDP, optimizer: torch.optim.Optimizer,
                  lr_scheduler: torch.optim.lr_scheduler.LRScheduler, tokenizer: PreTrainedTokenizer):
         self.previous_global_step = None
-        self.previous_save_local_path = None
+        self.previous_save_local_paths = []
 
         self.model = model
         self.optimizer = optimizer
@@ -59,17 +59,19 @@ class BaseCheckpointManager:
     def save_checkpoint(self, *args, **kwargs):
         raise NotImplementedError
 
-    def remove_previous_save_local_path(self):
-        if not self.previous_save_local_path:
+    def remove_previous_save_local_path(self, keep_number=-1):
+        if keep_number <= 0:
             return
 
-        abs_path = os.path.abspath(self.previous_save_local_path)
-        print(f'Checkpoint manager remove previous save local path: {abs_path}')
-        if not os.path.exists(abs_path):
-            return
+        for previous_save_local_path in self.previous_save_local_paths[:-keep_number]:
+            abs_path = os.path.abspath(previous_save_local_path)
 
-        # remove previous local_path
-        shutil.rmtree(abs_path, ignore_errors=True)
+            if not os.path.exists(abs_path):
+                continue
+
+            print(f'Checkpoint manager remove previous save local path: {abs_path}')
+            # remove previous local_path
+            shutil.rmtree(abs_path, ignore_errors=True)
 
     @staticmethod
     def local_mkdir(path):

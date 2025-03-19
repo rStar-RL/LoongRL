@@ -20,8 +20,14 @@ import warnings
 
 import torch
 import torch.distributed
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, StateDictType
-from torch.distributed.fsdp import ShardedStateDictConfig, ShardedOptimStateDictConfig, FullStateDictConfig
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.checkpoint.state_dict import (
+    get_model_state_dict,
+    get_optimizer_state_dict,
+    set_model_state_dict,
+    set_optimizer_state_dict,
+    StateDictOptions
+)
 
 from verl.utils.fs import copy_local_path_from_hdfs, is_non_local
 
@@ -80,12 +86,11 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         lr_scheduler_state_dict = extra_state_dict['lr_scheduler']
 
-        state_dict_cfg = ShardedStateDictConfig(offload_to_cpu=True)
-        optim_cfg = ShardedOptimStateDictConfig(offload_to_cpu=True)
-        with FSDP.state_dict_type(self.model, StateDictType.SHARDED_STATE_DICT, state_dict_cfg, optim_cfg):
-            self.model.load_state_dict(model_state_dict)
-            if self.optimizer is not None:
-                self.optimizer.load_state_dict(optimizer_state_dict)
+        state_dict_cfg = StateDictOptions(cpu_offload=True)
+        optim_cfg = StateDictOptions(cpu_offload=True)
+        set_model_state_dict(self.model, model_state_dict, options=state_dict_cfg)
+        if self.optimizer is not None:
+            set_optimizer_state_dict(self.model, self.optimizer, optimizer_state_dict, options=optim_cfg)
         # recover random state
         if 'rng' in extra_state_dict:
             # 'rng' may not exist for backward compatibility
@@ -101,47 +106,47 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         # remove previous local_path
         # TODO: shall we remove previous ckpt every save?
         if remove_previous_ckpt:
-            self.remove_previous_save_local_path()
+            # keep at most two latest checkpoint to prevent the failure during saving new checkpoint, but the previous checkpoint has already be deleted.
+            self.remove_previous_save_local_path(keep_number=2)
         local_path = self.local_mkdir(local_path)
         torch.distributed.barrier()
 
         # every rank will save its own model and optim shard
-        state_dict_cfg = ShardedStateDictConfig(offload_to_cpu=True)
-        optim_cfg = ShardedOptimStateDictConfig(offload_to_cpu=True)
+        state_dict_cfg = StateDictOptions(cpu_offload=True)
+        optim_cfg = StateDictOptions(cpu_offload=True)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            with FSDP.state_dict_type(self.model, StateDictType.SHARDED_STATE_DICT, state_dict_cfg, optim_cfg):
-                model_state_dict = self.model.state_dict()
-                if self.optimizer is not None:
-                    optimizer_state_dict = self.optimizer.state_dict()
-                else:
-                    optimizer_state_dict = None
-                if self.lr_scheduler is not None:
-                    lr_scheduler_state_dict = self.lr_scheduler.state_dict()
-                else:
-                    lr_scheduler_state_dict = None
+            model_state_dict = get_model_state_dict(self.model, options=state_dict_cfg)
+            if self.optimizer is not None:
+                optimizer_state_dict = get_optimizer_state_dict(self.model, self.optimizer, options=optim_cfg)
+            else:
+                optimizer_state_dict = None
+            if self.lr_scheduler is not None:
+                lr_scheduler_state_dict = self.lr_scheduler.state_dict()
+            else:
+                lr_scheduler_state_dict = None
 
-                extra_state_dict = {
-                    'lr_scheduler': lr_scheduler_state_dict,
-                    'rng': self.get_rng_state(),
-                }
-                model_path = os.path.join(local_path, f'model_world_size_{self.world_size}_rank_{self.rank}.pt')
-                optim_path = os.path.join(local_path, f'optim_world_size_{self.world_size}_rank_{self.rank}.pt')
-                extra_path = os.path.join(local_path, f'extra_state_world_size_{self.world_size}_rank_{self.rank}.pt')
+            extra_state_dict = {
+                'lr_scheduler': lr_scheduler_state_dict,
+                'rng': self.get_rng_state(),
+            }
+            model_path = os.path.join(local_path, f'model_world_size_{self.world_size}_rank_{self.rank}.pt')
+            optim_path = os.path.join(local_path, f'optim_world_size_{self.world_size}_rank_{self.rank}.pt')
+            extra_path = os.path.join(local_path, f'extra_state_world_size_{self.world_size}_rank_{self.rank}.pt')
 
-                print(f'[rank-{self.rank}]: Saving model to {os.path.abspath(model_path)}')
-                print(f'[rank-{self.rank}]: Saving checkpoint to {os.path.abspath(model_path)}')
-                print(f'[rank-{self.rank}]: Saving extra_state to {os.path.abspath(extra_path)}')
-                torch.save(model_state_dict, model_path)
-                torch.save(optimizer_state_dict, optim_path)  # TODO: address optimizer is None
-                torch.save(extra_state_dict, extra_path)
+            print(f'[rank-{self.rank}]: Saving model to {os.path.abspath(model_path)}')
+            print(f'[rank-{self.rank}]: Saving checkpoint to {os.path.abspath(model_path)}')
+            print(f'[rank-{self.rank}]: Saving extra_state to {os.path.abspath(extra_path)}')
+            torch.save(model_state_dict, model_path)
+            torch.save(optimizer_state_dict, optim_path)  # TODO: address optimizer is None
+            torch.save(extra_state_dict, extra_path)
 
+        del model_state_dict, optimizer_state_dict, extra_state_dict
         # wait for everyone to dump to local
         torch.distributed.barrier()
 
-        cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT, cfg):
-            state_dict = self.model.state_dict()
+        cfg = StateDictOptions(full_state_dict=True, cpu_offload=True)
+        state_dict = get_model_state_dict(self.model, options=cfg)
 
         if self.rank == 0:
             hf_local_path = str(Path(local_path).parent / f'{Path(local_path).name}-huggingface')
@@ -151,4 +156,4 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         torch.distributed.barrier()
 
-        self.previous_save_local_path = local_path
+        self.previous_save_local_paths.append(local_path)

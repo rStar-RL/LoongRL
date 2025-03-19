@@ -59,7 +59,7 @@ We found it helpful to compute the reward score in a remote server, since
 
 Note that the server only supports judging python and cpp code currently.
 
-You can set up the server by following commands
+You can set up the server on a single node by following commands
 
 ```bash
 # the python version should >= 3.10
@@ -72,6 +72,18 @@ git clone https://github.com/0xWJ/code-judge.git
 cd code-judge
 REDIS_URI=redis://localhost:6379 RUN_WORKERS=0 ~/.conda/envs/server/bin/fastapi run --workers 4 app/main.py
 REDIS_URI=redis://localhost:6379 python run_workers.py
+```
+
+When calculating advantages becomes the bottle neck of the training system, you can try to deploy the server on
+multiple nodes that have resources the server needs, like CPU cores. Here `REMOTE_REDIS_INFO` is the address and
+port of the azure redis cache service.
+
+```bash
+# on the master node in Ray's training
+REDIS_URI=REMOTE_REDIS_INFO RUN_WORKERS=0 fastapi run --workers 32 app/main.py --host 0.0.0.0
+
+# on all worker nodes
+REDIS_URI=REMOTE_REDIS_INFO python run_workers.py
 ```
 
 ### Multi-Node Training

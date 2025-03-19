@@ -1,0 +1,56 @@
+set -x
+
+train_files="['/scratch/nishang/data/orz_math_57k_collected/train.parquet']"
+test_files="['/scratch/nishang/data/aime2024/test.parquet']"
+
+PYTORCH_HIP_ALLOC_CONF=expandable_segments:True RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES=0 NCCL_TIMEOUT=1800 python3 -m verl.trainer.main_ppo \
+    data.train_files="$train_files" \
+    data.val_files="$test_files" \
+    data.train_batch_size=128 \
+    data.val_batch_size=1024 \
+    data.max_prompt_length=1024 \
+    data.max_response_length=7168 \
+    +data.chat_template=qwen_orz \
+    actor_rollout_ref.model.path=/scratch/nishang/Qwen2.5-7B \
+    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0057 \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.actor.ppo_mini_batch_size=8192 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.actor.fsdp_config.param_offload=False \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+    actor_rollout_ref.rollout.n=64 \
+    actor_rollout_ref.rollout.temperature=1 \
+    actor_rollout_ref.rollout.swap_space=32 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    critic.optim.lr=5e-6 \
+    critic.optim.lr_warmup_steps_ratio=0.0057 \
+    critic.model.use_remove_padding=True \
+    critic.model.path=/scratch/nishang/Qwen2.5-7B \
+    critic.model.enable_gradient_checkpointing=True \
+    critic.ppo_mini_batch_size=512 \
+    critic.ppo_micro_batch_size_per_gpu=16 \
+    critic.model.fsdp_config.param_offload=False \
+    critic.model.fsdp_config.optimizer_offload=False \
+    reward_model.reward_manager=prime \
+    +reward_model.chat_template=qwen_orz \
+    algorithm.kl_ctrl.kl_coef=0.0 \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console','wandb'] \
+    +trainer.val_before_train=True \
+    +trainer.conda_env=rstar \
+    trainer.project_name='verl-orz' \
+    trainer.experiment_name='Qwen2.5-7B-math-PPO-orz-align-template' \
+    trainer.n_gpus_per_node=8 \
+    trainer.nnodes=1 \
+    trainer.save_freq=10 \
+    trainer.test_freq=5 \
+    trainer.default_local_dir=/scratch/nishang/verl_checkpoint/verl-orz/Qwen2.5-7B-math-PPO-orz-align-template \
+    trainer.remove_previous_ckpt_in_save=True \
+    trainer.total_epochs=20 $@ 2>&1 | tee Qwen2.5-7B-math-PPO-orz-align-template.log

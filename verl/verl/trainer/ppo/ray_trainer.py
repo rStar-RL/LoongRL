@@ -25,6 +25,7 @@ from pprint import pprint
 from typing import Type, Dict
 from copy import deepcopy
 from collections import defaultdict
+import json
 
 import numpy as np
 from codetiming import Timer
@@ -80,6 +81,13 @@ class ResourcePoolManager:
     def get_resource_pool(self, role: Role) -> RayResourcePool:
         """Get the resource pool of the worker_cls"""
         return self.resource_pool_dict[self.mapping[role]]
+
+
+class NumpyArrayListEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 import torch
@@ -171,6 +179,18 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
                                                                          reward_baselines=reward_baselines,
                                                                          eos_mask=response_mask)
 
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
+    elif adv_estimator == 'rloo':
+        token_level_rewards = data.batch['token_level_rewards']
+        index = data.non_tensor_batch['uid']
+        responses = data.batch['responses']
+        response_length = responses.size(-1)
+        attention_mask = data.batch['attention_mask']
+        response_mask = attention_mask[:, -response_length:]
+        advantages, returns = core_algos.compute_rloo_outcome_advantage(token_level_rewards=token_level_rewards,
+                                                                        eos_mask=response_mask,
+                                                                        index=index)
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
     else:
@@ -410,11 +430,7 @@ class RayPPOTrainer(object):
 
         if self.config.algorithm.adv_estimator == 'gae':
             self.use_critic = True
-        elif self.config.algorithm.adv_estimator == 'grpo':
-            self.use_critic = False
-        elif self.config.algorithm.adv_estimator == 'reinforce_plus_plus':
-            self.use_critic = False
-        elif self.config.algorithm.adv_estimator == 'remax':
+        elif self.config.algorithm.adv_estimator in ['grpo', 'reinforce_plus_plus', 'remax', 'rloo']:
             self.use_critic = False
         else:
             raise NotImplementedError
@@ -499,6 +515,11 @@ class RayPPOTrainer(object):
                 assert config.critic.model.use_remove_padding, \
                     "When using sequence parallelism for critic, you must enable `use_remove_padding`."
 
+        if config.data.get('val_batch_size', None) is not None:
+            print(
+                f"WARNING: val_batch_size is deprecated. Validation datasets are sent to inference engines as a whole batch, which will schedule the memory themselves."
+            )
+
         print("[validate_config] All configuration checks passed successfully!")
 
     def _create_dataloader(self):
@@ -534,11 +555,14 @@ class RayPPOTrainer(object):
                                        return_raw_chat=self.config.data.get('return_raw_chat', False),
                                        truncation='error',
                                        chat_template=get_chat_template(self.config.data.get('chat_template', None)))
-        self.val_dataloader = DataLoader(dataset=self.val_dataset,
-                                         batch_size=len(self.val_dataset),
-                                         shuffle=True,
-                                         drop_last=True,
-                                         collate_fn=collate_fn)
+        self.val_dataloader = DataLoader(
+            dataset=self.val_dataset,
+            # Validation datasets are sent to inference engines as a whole batch,
+            # which will schedule the memory themselves.
+            batch_size=len(self.val_dataset),
+            shuffle=True,
+            drop_last=False,
+            collate_fn=collate_fn)
 
         assert len(self.train_dataloader) >= 1
         assert len(self.val_dataloader) >= 1
@@ -618,6 +642,7 @@ class RayPPOTrainer(object):
         sample_inputs = []
         sample_outputs = []
         sample_scores = []
+        ground_truth = []
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
@@ -628,8 +653,11 @@ class RayPPOTrainer(object):
 
             # Store original inputs
             input_ids = test_batch.batch['input_ids']
-            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in input_ids]
+            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in input_ids]
             sample_inputs.extend(input_texts)
+            # only save ground truth for custom_math_xxx data source
+            ground_truth.extend([(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+                                    for rw, data_src in zip(test_batch.non_tensor_batch['reward_model'], test_batch.non_tensor_batch['data_source'])])
 
             test_gen_batch = test_batch.pop(['input_ids', 'attention_mask', 'position_ids'])
             test_gen_batch.meta_info = {
@@ -649,7 +677,7 @@ class RayPPOTrainer(object):
 
             # Store generated outputs
             output_ids = test_output_gen_batch.batch['responses']
-            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in output_ids]
+            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in output_ids]
             sample_outputs.extend(output_texts)
 
             test_batch = test_batch.union(test_output_gen_batch)
@@ -665,6 +693,9 @@ class RayPPOTrainer(object):
             data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
 
         self._maybe_log_val_generations_to_wandb(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
+
+        if self.config.trainer.save_test_log:
+            self._save_generation_score(sample_inputs, sample_outputs, ground_truth, scores, 'test_gen_log')
 
         reward_tensor = torch.cat(reward_tensor_lst, dim=0).sum(-1).cpu()  # (batch_size,)
         data_sources = np.concatenate(data_source_lst, axis=0)
@@ -749,6 +780,15 @@ class RayPPOTrainer(object):
         # we should create rollout at the end so that vllm can have a better estimation of kv cache memory
         self.actor_rollout_wg = all_wg['actor_rollout']
         self.actor_rollout_wg.init_model()
+
+    def _save_generation_score(self, sample_inputs, sample_outputs, ground_truth, scores, sub_folder, pad_token="<|endoftext|>"):
+        import json
+        from pathlib import Path
+        samples = [{'input': a.replace(pad_token, ""), 'response': b.replace(pad_token, ""), 'ground_truth': c, 'score': d} for a, b, c, d in zip(sample_inputs, sample_outputs, ground_truth, scores)]
+        local_global_step_log_folder = Path(self.config.trainer.default_local_dir, sub_folder)
+        local_global_step_log_folder.mkdir(parents=True, exist_ok=True)
+        with (local_global_step_log_folder / f'global_step_{self.global_steps}.json').open('w') as f:
+            json.dump(samples, f, indent=4, cls=NumpyArrayListEncoder)
 
     def _save_checkpoint(self):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
@@ -956,6 +996,15 @@ class RayPPOTrainer(object):
                         # we combine with rule-based rm
                         reward_tensor = self.reward_fn(batch)
                         batch.batch['token_level_scores'] = reward_tensor
+
+                        if self.config.trainer.save_train_log:
+                            input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['input_ids']]
+                            output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['responses']]
+                            # only save ground truth for custom_math_xxx data source
+                            ground_truth = [(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+                                                for rw, data_src in zip(batch.non_tensor_batch['reward_model'], batch.non_tensor_batch['data_source'])]
+                            scores = reward_tensor.sum(-1).cpu().tolist()
+                            self._save_generation_score(input_texts, output_texts, ground_truth, scores, 'train_gen_log')
 
                         # compute rewards. apply_kl_penalty if available
                         if not self.config.actor_rollout_ref.actor.get('use_kl_loss', False):
