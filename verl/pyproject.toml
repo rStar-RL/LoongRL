@@ -35,7 +35,7 @@ dependencies = [
     "datasets",
     "dill",
     "hydra-core",
-    "math-verify",
+    # "math-verify",
     "numpy",
     "pandas",
     "peft",
@@ -46,7 +46,7 @@ dependencies = [
     "tensordict",
     "torchdata",
     "transformers",
-    "vllm<=0.6.3",
+    "vllm",
     'wandb',
 ]
 
