@@ -40,3 +40,4 @@ pip list
 
 echo "force reinstall vllm to avoid flash-attn error"
 pip install --force-reinstall vllm -U
+pip install tensordict==0.7.2
