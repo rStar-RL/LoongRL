@@ -35,3 +35,8 @@ pip install wandb
 bash patches/ray_patch/patch.sh
 
 # Return to the original directory
+
+pip list 
+
+echo "force reinstall vllm to avoid flash-attn error"
+pip install --force-reinstall vllm -U
