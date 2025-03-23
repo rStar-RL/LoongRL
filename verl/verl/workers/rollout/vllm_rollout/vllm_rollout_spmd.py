@@ -85,9 +85,19 @@ class vLLMRollout(BaseRollout):
             num_tp_per_train_tp = train_tp // tensor_parallel_size
             vllm_ps.initialize_parallel_state(tensor_model_parallel_size=tensor_parallel_size,
                                               num_tp_per_train_tp=num_tp_per_train_tp)
-
-        assert model_hf_config.max_position_embeddings >= config.prompt_length + config.response_length, \
-            "model context length should be greater than total sequence length"
+        is_yarn = False
+        if hasattr(model_hf_config, 'rope_scaling') and model_hf_config.rope_scaling is not None:
+            # check if the type is yarn
+            rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
+            if rope_type == 'yarn':
+                is_yarn = True
+                yarn_factor = model_hf_config.rope_scaling.get("factor", 1.0)
+        if not is_yarn:
+            assert model_hf_config.max_position_embeddings >= config.prompt_length + config.response_length, \
+                "model context length should be greater than total sequence length"
+        else:
+            assert model_hf_config.max_position_embeddings * yarn_factor >= config.prompt_length + config.response_length, \
+                "model context length should be greater than total sequence length"
 
         self.inference_engine = LLM(
             model=model_path,
