@@ -88,7 +88,7 @@ class vLLMRollout(BaseRollout):
         is_yarn = False
         if hasattr(model_hf_config, 'rope_scaling') and model_hf_config.rope_scaling is not None:
             # check if the type is yarn
-            rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
+            rope_type = model_hf_config.rope_scaling.get("rope_type", model_hf_config.rope_scaling.get("type"))
             if rope_type == 'yarn':
                 is_yarn = True
                 yarn_factor = model_hf_config.rope_scaling.get("factor", 1.0)
