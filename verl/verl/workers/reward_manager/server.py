@@ -43,7 +43,7 @@ class ServerRewardManager():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, compute_score=None) -> None:
+    def __init__(self, tokenizer, num_examine, compute_score=None, config=None) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
@@ -53,14 +53,19 @@ class ServerRewardManager():
         self.print_num = 128
 
         # should refactor this function with server call
-        self._math_call = PrimeRewardManager(tokenizer, num_examine, compute_score)
+        self._math_call = PrimeRewardManager(tokenizer, num_examine, compute_score, config)
         self._math_reward_scale = 5.  # scale the math reward to be consistent with code reward
+
+        self.config = config
 
     def __call__(self, data: DataProto):
         code_data_idxs, code_data, math_data_idxs, math_data = self._router_data(data)
         code_reward = self._code_call(code_data) if code_data is not None else None
         math_reward = self._math_call(math_data) if math_data is not None else None
         reward_tensor = self._mergeback_reward(math_data_idxs, code_data_idxs, math_reward, code_reward)
+        code_metric = code_data.meta_info.pop('metrics', {})
+        math_metric = math_data.meta_info.pop('metrics', {})
+        data.meta_info['metrics'] = {**code_metric, **math_metric}
         return reward_tensor
 
     def _code_call(self, data: DataProto):
@@ -140,15 +145,39 @@ class ServerRewardManager():
                 ground_truth = prompt2groundtruth[prompt]
                 futures.append((prompt, executor.submit(batch_judge, solutions, ground_truth, self.batch_size)))
 
+            total_score_list, answer_score_list, format_score_list, overlong_reward_list = [], [], [], []
+
             for prompt, future in futures:
                 scores = future.result()
                 for score, rollout in zip(scores, prompt2rollouts[prompt]):
                     i = rollout.batch_idx
                     answer_score = 5.0 * score
-                    total_score = answer_score + rollout.format_score
+                    if self.config.reward_model.overlong_buffer.enable:
+                        overlong_buffer_len = self.config.reward_model.overlong_buffer.len
+                        expected_len = self.config.data.max_response_length - overlong_buffer_len
+                        exceed_len = current_rollout.valid_response_len.item() - expected_len
+                        overlong_penalty_factor = self.config.reward_model.overlong_buffer.penalty_factor
+                        overlong_reward = min(-exceed_len / overlong_buffer_len * overlong_penalty_factor, 0) * self._math_reward_scale
+                    else:
+                        overlong_reward = 0
+                    total_score = answer_score + rollout.format_score + overlong_reward
                     reward_tensor[i, rollout.valid_response_len - 1] = total_score
                     rollout.debug_info.append(f"  Answer Score: {answer_score}")
+                    rollout.debug_info.append(f"  Overlong Score: {overlong_reward}")
                     rollout.debug_info.append(f"  Total Score: {total_score}")
+                    total_score_list.append(total_score)
+                    answer_score_list.append(answer_score)
+                    format_score_list.append(rollout.format_score)
+                    overlong_reward_list.append(overlong_reward)
+
+            if 'metrics' not in data.meta_info:
+                data.meta_info['metrics'] = {}
+            data.meta_info['metrics'].update({
+                'server_code/final_scores/mean': sum(total_score_list) / len(total_score_list),
+                'server_code/answer_scores/mean': sum(answer_score_list) / len(answer_score_list),
+                'server_code/format_scores/mean': sum(format_score_list) / len(format_score_list),
+                'server_code/overlong_rewards/mean': sum(overlong_reward_list) / len(overlong_reward_list),
+            })
 
         end_time = time.time()
         print('SeverRewardManager: judge time:', end_time - start_time, 's')

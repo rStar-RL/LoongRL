@@ -30,7 +30,8 @@ actor_rollout_ref:
     use_dynamic_bsz: False
     ppo_max_token_len_per_gpu: 16384 # n * ${data.max_prompt_length} + ${data.max_response_length}
     grad_clip: 1.0
-    clip_ratio: 0.2
+    clip_ratio_low: 0.2
+    clip_ratio_high: 0.2
     entropy_coeff: 0.001
     use_kl_loss: False # True for GRPO
     use_torch_compile: True # False to disable torch compile
@@ -158,6 +159,10 @@ reward_model:
   use_dynamic_bsz: ${critic.use_dynamic_bsz}
   forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}
   reward_manager: naive
+  overlong_buffer:
+    enable: False
+    len: 0
+    penalty_factor: 0.0
 
 custom_reward_function:
   path: null
@@ -194,3 +199,4 @@ trainer:
   remove_previous_ckpt_in_save: False
   del_local_ckpt_after_load: False
   default_local_dir: checkpoints/${trainer.project_name}/${trainer.experiment_name}
+  rejection_sample: False

@@ -11,7 +11,7 @@ pip install transformers==4.48.3
 
 cd vllm
 git checkout v0.7.3
-cp $SCRIPT_DIR/requirements-common.txt
+cp $SCRIPT_DIR/requirements-common.txt .
 export CCACHE_DIR=/scratch/ccahe
 python setup.py develop
 cd ..

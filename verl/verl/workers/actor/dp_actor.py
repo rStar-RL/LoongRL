@@ -279,7 +279,8 @@ class DataParallelPPOActor(BasePPOActor):
                     old_log_prob = data['old_log_probs']
                     advantages = data['advantages']
 
-                    clip_ratio = self.config.clip_ratio
+                    clip_ratio_low = self.config.clip_ratio_low
+                    clip_ratio_high = self.config.clip_ratio_high
                     entropy_coeff = self.config.entropy_coeff
 
                     # all return: (bsz, response_length)
@@ -289,7 +290,7 @@ class DataParallelPPOActor(BasePPOActor):
                                                                                   log_prob=log_prob,
                                                                                   advantages=advantages,
                                                                                   eos_mask=response_mask,
-                                                                                  cliprange=clip_ratio)
+                                                                                  cliprange=(clip_ratio_low, clip_ratio_high))
                     # compute entropy loss from entropy
                     entropy_loss = verl_F.masked_mean(entropy, response_mask)
 

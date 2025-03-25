@@ -31,7 +31,7 @@ import numpy as np
 from codetiming import Timer
 from omegaconf import OmegaConf, open_dict
 from verl import DataProto
-from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
+from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto, DataProtoItem
 from verl.single_controller.base import Worker
 from verl.single_controller.ray import RayResourcePool, RayWorkerGroup, RayClassWithInitArgs
 from verl.single_controller.ray.base import create_colocated_worker_cls
@@ -46,6 +46,15 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 WorkerType = Type[Worker]
+
+
+def dataprotoitem_to_dataproto(item: DataProtoItem) -> DataProto:
+    """Convert a DataProtoItem to a DataProto object"""
+    return DataProto.from_dict(
+        tensors=item.batch,  # TensorDict is already in correct format
+        non_tensors=item.non_tensor_batch,  # Dict is already in correct format 
+        meta_info=item.meta_info
+    )
 
 
 class Role(Enum):
@@ -897,6 +906,44 @@ class RayPPOTrainer(object):
                         # we combine with rule-based rm
                         reward_tensor = self.reward_fn(batch)
                         batch.batch['token_level_scores'] = reward_tensor
+                        metrics.update(batch.meta_info.pop('metrics', {}))
+
+                        # Rejection sampling based on rewards
+                        # Group rewards by uid
+                        uids = batch.non_tensor_batch['uid']
+                        unique_uids = np.unique(uids)
+                        valid_mask = torch.ones(len(uids), dtype=torch.bool)
+                        solve_equal = 0
+                        for uid in unique_uids:
+                            uid_mask = uids == uid
+                            uid_rewards = reward_tensor[uid_mask].sum(-1)  # Sum rewards for each sequence
+
+                            if torch.allclose(uid_rewards[0], uid_rewards):
+                                valid_mask[uid_mask] = False
+                                solve_equal += 1
+
+                        # Log to metrics
+                        metrics['batch/solve_equal'] = solve_equal
+
+                        if self.config.trainer.rejection_sample:
+                            # If no valid samples remain, skip this batch and get a new one
+                            if not valid_mask.any():
+                                continue
+
+                            # Filter batch to keep only valid samples
+                            batch = batch[valid_mask]
+                            batch = dataprotoitem_to_dataproto(batch)
+                            # Round down to the nearest multiple of world size
+                            num_trainer_replicas = self.actor_rollout_wg.world_size 
+                            max_batch_size = (batch.batch['input_ids'].shape[0] // num_trainer_replicas) * num_trainer_replicas
+                            if not max_batch_size:
+                                # give up, you got everything either all wrong or right.
+                                continue
+
+                            size_mask = torch.zeros(batch.batch['input_ids'].shape[0], dtype=torch.bool)
+                            size_mask[:max_batch_size] = True
+                            batch = batch[size_mask]
+                            batch = dataprotoitem_to_dataproto(batch)
 
                         if self.config.trainer.save_train_log:
                             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['input_ids']]

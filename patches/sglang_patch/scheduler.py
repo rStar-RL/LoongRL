@@ -1573,8 +1573,9 @@ class Scheduler(SchedulerOutputProcessorMixin):
             self.memory_saver_adapter.pause()
         else:
             if self.tp_worker.worker.model_runner.cuda_graph_runner is not None:
-                self.tp_worker.worker.model_runner.cuda_graph_runner.graphs = {}
-                self.tp_worker.worker.model_runner.cuda_graph_runner.output_buffers = {}
+                self.tp_worker.worker.model_runner.cuda_graph_runner = None
+                self.tp_worker.worker.model_runner.tp_group.ca_comm.close()
+                self.resume_need_reinit_cuda_graph_runner = True
                 from sglang.srt.model_executor.cuda_graph_runner import set_global_graph_memory_pool
                 set_global_graph_memory_pool(None)
             self.tp_worker.worker.model_runner.token_to_kv_pool._clear_buffers()
@@ -1589,8 +1590,12 @@ class Scheduler(SchedulerOutputProcessorMixin):
             self.memory_saver_adapter.resume()
         else:
             self.tp_worker.worker.model_runner.token_to_kv_pool._create_buffers()
-            if self.tp_worker.worker.model_runner.cuda_graph_runner is not None:
-                self.tp_worker.worker.model_runner.cuda_graph_runner.capture()
+            if self.resume_need_reinit_cuda_graph_runner:
+                tp_group = self.tp_worker.worker.model_runner.tp_group
+                if tp_group.use_custom_allreduce and tp_group.world_size > 1:
+                    from sglang.srt.distributed.device_communicators.custom_all_reduce import CustomAllreduce
+                    tp_group.ca_comm = CustomAllreduce(group=tp_group.cpu_group, device=tp_group.device)
+                self.tp_worker.worker.model_runner.init_cuda_graphs()
         #########
         _import_static_state(
             self.tp_worker.worker.model_runner.model, self.stashed_model_static_state

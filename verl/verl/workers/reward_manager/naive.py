@@ -21,10 +21,12 @@ class NaiveRewardManager:
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, compute_score=None) -> None:
+    def __init__(self, tokenizer, num_examine, compute_score=None, config=None) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
+
+        assert config.reward_model.overlong_buffer.enable is False
 
     def verify(self, data):
         scores = []

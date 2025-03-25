@@ -35,6 +35,7 @@ cd ..
 git clone -b v0.4.4.post1 https://github.com/sgl-project/sglang.git
 cp rStar-RL/patches/sglang_patch/pyproject.toml sglang/python/
 cp rStar-RL/patches/sglang_patch/scheduler.py sglang/python/sglang/srt/managers/
+cp rStar-RL/patches/sglang_patch/custom_all_reduce.py sglang/python/sglang/srt/distributed/device_communicators/
 cd sglang/sgl-kernel
 python setup_rocm.py install
 cd ..

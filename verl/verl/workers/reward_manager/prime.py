@@ -86,10 +86,11 @@ class PrimeRewardManager:
     The Reward Manager used in https://github.com/PRIME-RL/PRIME
     """
 
-    def __init__(self, tokenizer, num_examine, compute_score=None) -> None:
+    def __init__(self, tokenizer, num_examine, compute_score=None, config=None) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
+        self.config = config
 
     def verify(self, data):
         """
@@ -141,7 +142,26 @@ class PrimeRewardManager:
         data_sources = data.non_tensor_batch['data_source']
         extra_info = data.non_tensor_batch.get('extra_info', [None] * len(data_sources))
 
-        scores = self.verify(data)
+        acc_scores = self.verify(data)
+
+        if self.config.reward_model.overlong_buffer.enable:
+            overlong_buffer_len = self.config.reward_model.overlong_buffer.len
+            expected_len = self.config.data.max_response_length - overlong_buffer_len
+            exceed_len = valid_response_length - expected_len
+            overlong_penalty_factor = self.config.reward_model.overlong_buffer.penalty_factor
+            overlong_reward = torch.minimum(-exceed_len / overlong_buffer_len * overlong_penalty_factor, torch.tensor(0.)).tolist()
+        else:
+            overlong_reward = [0.] * len(acc_scores)
+
+        scores = [_a + _b for _a, _b in zip(acc_scores, overlong_reward)]
+
+        if 'metrics' not in data.meta_info:
+            data.meta_info['metrics'] = {}
+        data.meta_info['metrics'].update({
+            'prime_math/final_scores/mean': sum(scores) / len(scores),
+            'prime_math/answer_scores/mean': sum(acc_scores) / len(acc_scores),
+            'prime_math/overlong_rewards/mean': sum(overlong_reward) / len(overlong_reward),
+        })
 
         for i in range(len(data)):
             data_source = data_sources[i]

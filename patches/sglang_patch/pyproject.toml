@@ -68,7 +68,7 @@ srt_hpu = ["sglang[runtime_common]", "outlines>=0.0.44,<=0.1.11"]
 # https://docs.vllm.ai/en/latest/getting_started/installation/cpu/index.html
 srt_cpu = ["sglang[runtime_common]", "outlines>=0.0.44,<=0.1.11", "torch"]
 
-openai = ["openai>=1.0", "tiktoken"]
+openai = ["openai<1.68", "tiktoken"]
 anthropic = ["anthropic>=0.20.0"]
 litellm = ["litellm>=1.0.0"]
 torch_memory_saver = ["torch_memory_saver"]
