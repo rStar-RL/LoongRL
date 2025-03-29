@@ -44,6 +44,8 @@ manager available on your cluster or use other container runtimes (e.g. through 
 Please note that Slurm cluster setup may vary. If you encounter any issues, please refer to Ray's
 `Slurm user guide <https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html>`_ for common caveats.
 
+If you changed Slurm resource specifications, please make sure to update the environment variables in the job script if necessary.
+
 Illegal memory access
 ---------------------------------
 
@@ -55,3 +57,8 @@ Please set the following environment variable. The env var must be set before th
     export VLLM_ATTENTION_BACKEND=XFORMERS
 
 If in doubt, print this env var in each rank to make sure it is properly set.
+
+Checkpoints
+------------------------
+
+If you want to convert the model checkpoint into huggingface safetensor format, please refer to ``scripts/model_merger.py``.

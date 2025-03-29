@@ -26,14 +26,58 @@ git clone https://github.com/pytorch/tensordict.git
 cd tensordict
 pip install .
 cd ..
+```
 
+SGLang have a better rollout performance compared with vLLM.
+
+If you are using NVIDIA devices, please follow the official install method of SGLang/vLLM.
+
+If you are using AMD devices, please follow the following steps.
+
+Chosen 1 on MI300X: sglang v0.4.4.post1
+
+```bash
+# please make sure the vllm version is v0.7.3 or using the SGLang suggested docker image,
+# other version may also work, but not tested.
+# 
+# Install a patched vllm v0.7.3 version to avoid dependency conflict with SGLang,
+# or you may install a wrong cuda SGLang at the end.  
+git clone https://github.com/rStar-RL/rStar-RL.git
+bash rStar-RL/patches/vllm_patch/install_v0_7_3.sh
+
+git clone -b v0.4.4.post1 https://github.com/sgl-project/sglang.git
+# if using vllm version v0.7.3, patch SGLang pyproject.toml
+cp rStar-RL/patches/sglang_patch/pyproject.toml sglang/python/
+# patch SGLang scheduler to enable clear kv cache on rocm
+cp rStar-RL/patches/sglang_patch/scheduler.py sglang/python/sglang/srt/managers/
+
+pip install --upgrade pip
+cd sglang/sgl-kernel
+python setup_rocm.py install
+cd ..
+pip install -e "python[all_hip]"
+
+# aiter is required by sglang on rocm
+git clone https://github.com/ROCm/aiter.git
+cd aiter
+git checkout e70ee4d948fd8455e4d665ebcc6fa2654bad6137
+git submodule update --init --recursive
+PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py develop
+
+# if you are using image: rocmshared/vllm-rocm:vllm_0.6.3_rocm6.2_ubuntu20.04_torch2.6.0_py3.9
+# need to patch torchao to avoid it using some torch2.6 feature, because in this image is a special rocm torch2.6
+python rStar-RL/patches/torchao_patch/downgrade_version_mi300.py
+```
+
+Chosen 2 on MI300X: vllm v0.6.3
+
+```bash
 # install vllm, on rocm, suggest install from source
-
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-# if nvidia devices are used, can install main branch for better performance
 git checkout v0.6.3
-# export CCACHE_DIR=/scratch/ccahe if you encounter ccache permission problem
+# if you encounter ccache permission problem
+export CCACHE_DIR=/scratch/ccahe 
 python setup.py develop
 cd ..
 ```
@@ -44,10 +88,10 @@ cd ..
 git clone https://github.com/rStar-RL/rStar-RL.git
 cd rStar-RL/verl
 pip install -e .
-cd ..
+cd ../..
 
 # patch ray to enable ray set visible devices on AMD devices
-bash patches/ray_patch/patch.sh
+bash rStar-RL/patches/ray_patch/patch.sh
 ```
 
 ### Launch Reward Server
