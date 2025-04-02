@@ -580,7 +580,7 @@ class RayPPOTrainer(object):
             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in input_ids]
             sample_inputs.extend(input_texts)
             # only save ground truth for custom_math_xxx data source
-            ground_truth.extend([(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+            ground_truth.extend([(rw['ground_truth'])
                                     for rw, data_src in zip(test_batch.non_tensor_batch['reward_model'], test_batch.non_tensor_batch['data_source'])])
 
             if 'multi_modal_inputs' in test_batch.non_tensor_batch.keys():
@@ -990,7 +990,7 @@ class RayPPOTrainer(object):
                             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['input_ids']]
                             output_texts = [self.tokenizer.decode(ids, skip_special_tokens=False) for ids in batch.batch['responses']]
                             # only save ground truth for custom_math_xxx data source
-                            ground_truth = [(rw['ground_truth'] if data_src.startswith('custom_math_') else None)
+                            ground_truth = [(rw['ground_truth'])
                                                 for rw, data_src in zip(batch.non_tensor_batch['reward_model'], batch.non_tensor_batch['data_source'])]
                             scores = reward_tensor.sum(-1).cpu().tolist()
                             self._save_generation_score(input_texts, output_texts, ground_truth, scores, 'train_gen_log')
