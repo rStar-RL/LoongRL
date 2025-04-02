@@ -290,7 +290,9 @@ class DataParallelPPOActor(BasePPOActor):
                                                                                   log_prob=log_prob,
                                                                                   advantages=advantages,
                                                                                   eos_mask=response_mask,
-                                                                                  cliprange=(clip_ratio_low, clip_ratio_high))
+                                                                                  cliprange=(clip_ratio_low, clip_ratio_high),
+                                                                                  length_bias=(self.config.adv_estimator!='drgrpo'),
+                                                                                  max_tokens=self.config.max_response_length * response_mask.size(0))
                     # compute entropy loss from entropy
                     entropy_loss = verl_F.masked_mean(entropy, response_mask)
 
