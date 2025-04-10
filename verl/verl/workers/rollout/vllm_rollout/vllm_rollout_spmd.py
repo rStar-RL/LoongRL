@@ -119,6 +119,7 @@ class vLLMRollout(BaseRollout):
             enable_chunked_prefill=config.enable_chunked_prefill,
             swap_space=config.swap_space,
             enable_prefix_caching=True,
+            seed=self.config.seed,
         )
 
         # Offload vllm model to reduce peak memory usage
