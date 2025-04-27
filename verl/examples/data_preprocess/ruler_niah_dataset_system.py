@@ -70,6 +70,12 @@ if __name__ == '__main__':
         def process_fn(example, idx):
             input = example.pop('input')
             solution = example.pop('outputs')
+            if input.endswith('mentioned in the provided text is') or input.endswith('mentioned in the provided text are'):
+                # find the last ?
+                input = input[:input.rfind('?') + 1]
+                # import pdb; pdb.set_trace()
+            else:
+                print(f"Warning: {input} does not end with 'mentioned in the provided text is' or 'mentioned in the provided text are'")
             data = {
                 "data_source": f"custom_rulerniah_{data_source}",
                 "prompt": [
