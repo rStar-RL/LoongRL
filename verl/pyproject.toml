@@ -46,7 +46,7 @@ dependencies = [
     "tensordict",
     "torchdata",
     "transformers",
-    "vllm",
+    "vllm==0.8.2",
     'wandb',
 ]
 
