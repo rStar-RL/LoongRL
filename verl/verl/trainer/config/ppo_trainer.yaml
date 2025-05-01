@@ -54,6 +54,8 @@ actor_rollout_ref:
       param_offload: False
       optimizer_offload: False
       fsdp_size: -1
+    adv_estimator: ${algorithm.adv_estimator}  # used by drgrpo
+    max_response_length: ${data.max_response_length}  # used by drgrpo
   ref:
     fsdp_config:
       param_offload: False
