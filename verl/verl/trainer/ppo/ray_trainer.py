@@ -899,7 +899,10 @@ class RayPPOTrainer(object):
                 with _timer('step', timing_raw):
                     # generate a batch
                     with _timer('gen', timing_raw):
+                        # log the fact that we are generating
+                        pprint(f'Generating batch {self.global_steps}...')
                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
+                    pprint(f'Generation done for step {self.global_steps}.')
 
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                         with _timer('gen_max', timing_raw):
