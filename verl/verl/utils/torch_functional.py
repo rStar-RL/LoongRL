@@ -296,7 +296,7 @@ def tokenize_and_postprocess_data(prompt: str,
             raise NotImplementedError(f'{sequence_length=} is larger than {max_length=}')
         else:
             raise NotImplementedError(f'Unknown truncation method {truncation}')
-    pprint(f"input_ids shape: {input_ids.shape}, attention_mask shape: {attention_mask.shape}")
+    # pprint(f"input_ids shape: {input_ids.shape}, attention_mask shape: {attention_mask.shape}")
 
     return input_ids, attention_mask
 

@@ -577,9 +577,12 @@ class RayPPOTrainer(object):
         sample_outputs = []
         sample_scores = []
         ground_truth = []
+        pprint("start validation, next loading test_data")
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
+            pprint("Load one batch of test data")
+            pprint(f"The length of the test batch is {len(test_batch.batch['input_ids'])}")
 
             # repeat test batch
             test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.val_kwargs.n,
