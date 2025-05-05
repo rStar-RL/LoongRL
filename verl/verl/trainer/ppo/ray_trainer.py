@@ -859,6 +859,7 @@ class RayPPOTrainer(object):
                           experiment_name=self.config.trainer.experiment_name,
                           default_backend=self.config.trainer.logger,
                           config=OmegaConf.to_container(self.config, resolve=True))
+        pprint(f"logger ready")
 
         self.global_steps = 0
 
@@ -867,6 +868,7 @@ class RayPPOTrainer(object):
 
         # perform validation before training
         # currently, we only support validation using the reward_function.
+        pprint(f"Validating before training...")
         if self.val_reward_fn is not None and self.config.trainer.get('val_before_train', True):
             pprint('Validating before training...')
             val_metrics = self._validate()

@@ -171,6 +171,7 @@ def main_task(config):
                             reward_fn=reward_fn,
                             val_reward_fn=val_reward_fn)
     trainer.init_workers()
+    pprint(f"workers init done, start training")
     trainer.fit()
 
 
