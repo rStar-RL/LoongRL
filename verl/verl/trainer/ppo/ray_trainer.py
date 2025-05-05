@@ -462,9 +462,10 @@ class RayPPOTrainer(object):
                     "When using sequence parallelism for critic, you must enable `use_remove_padding`."
 
         if config.data.get('val_batch_size', None) is not None:
-            print(
-                f"WARNING: val_batch_size is deprecated. Validation datasets are sent to inference engines as a whole batch, which will schedule the memory themselves."
-            )
+            # print(
+            #     f"WARNING: val_batch_size is deprecated. Validation datasets are sent to inference engines as a whole batch, which will schedule the memory themselves."
+            # )
+            print(f"Even though val_batch_size is deprecated, we still use it to set the batch size of validation dataloader. Since a very big val_batch_size could lead to job hanging or worse.")
 
         # check eval config
         if config.actor_rollout_ref.rollout.val_kwargs.do_sample:
@@ -517,18 +518,20 @@ class RayPPOTrainer(object):
             dataset=self.val_dataset,
             # Validation datasets are sent to inference engines as a whole batch,
             # which will schedule the memory themselves.
-            batch_size=len(self.val_dataset),
+            # batch_size=len(self.val_dataset),
+            batch_size=self.config.data.val_batch_size,
             num_workers=8,
             shuffle=False,
             drop_last=False,
             collate_fn=collate_fn)
 
         assert len(self.train_dataloader) >= 1
-        assert len(
-            self.val_dataloader
-        ) == 1, "Validation dataloader must have a single batch, which inference engines will schedule the memory themselves."
+        # assert len(
+        #     self.val_dataloader
+        # ) == 1, "Validation dataloader must have a single batch, which inference engines will schedule the memory themselves."
 
         print(f'Size of train dataloader: {len(self.train_dataloader)}')
+        print(f"Size of val dataloader: {len(self.val_dataloader)}")
 
         # inject total_training_steps to actor/critic optim_config. This is hacky.
         total_training_steps = len(self.train_dataloader) * self.config.trainer.total_epochs
