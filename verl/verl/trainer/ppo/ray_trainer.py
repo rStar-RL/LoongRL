@@ -586,6 +586,7 @@ class RayPPOTrainer(object):
             test_batch = DataProto.from_single_dict(test_data)
             pprint("Load one batch of test data")
             pprint(f"The length of the test batch is {len(test_batch.batch['input_ids'])}")
+            pprint(f"The length of one prompt is {len(test_batch.batch['input_ids'][0])}")
 
             # repeat test batch
             test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.val_kwargs.n,
