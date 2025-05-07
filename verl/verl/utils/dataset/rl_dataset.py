@@ -218,7 +218,23 @@ class RLHFDataset(Dataset):
         row_dict['input_ids'] = input_ids[0]
         row_dict['attention_mask'] = attention_mask[0]
         row_dict['position_ids'] = position_ids[0]
-        row_dict['raw_prompt_ids'] = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        # row_dict['raw_prompt_ids'] = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        raw_prompt_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        if len(raw_prompt_ids) > self.max_prompt_length:
+            if self.truncation == "left":
+                raw_prompt_ids = raw_prompt_ids[-self.max_prompt_length :]
+            elif self.truncation == "right":
+                raw_prompt_ids = raw_prompt_ids[: self.max_prompt_length]
+            elif self.truncation == "middle":
+                            # input_ids = input_ids[: max_len // 2] + input_ids[-max_len // 2 :]
+                raw_prompt_ids = raw_prompt_ids[: self.max_prompt_length // 2] + raw_prompt_ids[-self.max_prompt_length // 2 :]
+
+            elif self.truncation == "error":
+                raise RuntimeError(f"Prompt length {len(raw_prompt_ids)} is longer than {self.max_prompt_length}.")
+            else:
+                raise ValueError(f"Unknown truncation type: {self.truncation}.")
+
+        row_dict["raw_prompt_ids"] = raw_prompt_ids
 
         # encode prompts without chat template
         if self.return_raw_chat:

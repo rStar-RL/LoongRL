@@ -265,7 +265,7 @@ def tokenize_and_postprocess_data(prompt: str,
     """
     input_data is the output from tokenizer.
     """
-    assert truncation in ['left', 'right', 'error']
+    assert truncation in ['left', 'right', 'error', 'middle']
 
     input_data = tokenizer(prompt, return_tensors='pt', add_special_tokens=False)
 
@@ -294,6 +294,9 @@ def tokenize_and_postprocess_data(prompt: str,
             attention_mask = attention_mask[:, :max_length]
         elif truncation == 'error':
             raise NotImplementedError(f'{sequence_length=} is larger than {max_length=}')
+        elif truncation == 'middle':
+            input_ids = torch.cat([input_ids[:, :max_length // 2], input_ids[:, -max_length // 2:]], dim=-1)
+            attention_mask = torch.cat([attention_mask[:, :max_length // 2], attention_mask[:, -max_length // 2:]], dim=-1)
         else:
             raise NotImplementedError(f'Unknown truncation method {truncation}')
     # pprint(f"input_ids shape: {input_ids.shape}, attention_mask shape: {attention_mask.shape}")
