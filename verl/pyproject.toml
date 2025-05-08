@@ -47,7 +47,8 @@ dependencies = [
     "torchdata",
     "transformers",
     "vllm==0.8.2",
-    'wandb',
+    "wandb",
+    "omegaconf",
 ]
 
 # Optional dependencies (extras_require in setup.py)
