@@ -1,9 +1,27 @@
+import argparse
 import pyarrow.parquet as pq
 import pyarrow as pa
 import os
 
-parquet_file = "your_file.parquet"  
-sample_size = 100                   
+parser = argparse.ArgumentParser(description="Sample a subset of a Parquet dataset.")
+parser.add_argument(
+    "--parquet_file",
+    "-p",
+    type=str,
+    default="/mnt/longcontext/models/siyuan/rl_datasets/rl_three/system/DAPO-Math-17k_5000/test.parquet",
+    help="Path to the input Parquet file.",
+)
+parser.add_argument(
+    "--sample_size",
+    "-s",
+    type=int,
+    default=100,
+    help="Number of rows to sample from the dataset.",
+)
+args = parser.parse_args()
+
+parquet_file = args.parquet_file
+sample_size = args.sample_size
 
 table = pq.read_table(parquet_file)
 

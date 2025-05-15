@@ -21,7 +21,10 @@ if __name__ == '__main__':
     dataset = datasets.Dataset.from_json(args.data_source)
     if args.end_index == -1:
         args.end_index = len(dataset)
-
+    if args.end_index > len(dataset):
+        print(f"Warning: end_index {args.end_index} is greater than the dataset size {len(dataset)}. Setting end_index to dataset size.")
+        args.end_index = len(dataset)
+    assert args.start_index < args.end_index, f"start_index {args.start_index} must be less than end_index {args.end_index}"
     # 1) Split out the training set
     train_dataset = dataset.select(range(args.start_index, args.end_index))
     train_size = len(train_dataset)  # Number of training samples
@@ -40,7 +43,8 @@ if __name__ == '__main__':
     if leftover_size == 0:
         print("Warning: No leftover samples to use for validation.")
         # If no leftover data, use the training set as validation
-        valid_indices = train_indices
+        # valid_indices = train_indices
+        valid_indices = sorted(train_indices)
     elif leftover_size < train_size:
         print(
             f"Warning: Only {leftover_size} leftover samples, "
@@ -100,6 +104,14 @@ if __name__ == '__main__':
 
     train_dataset.to_parquet(os.path.join(local_dir, 'train.parquet'))
     test_dataset.to_parquet(os.path.join(local_dir, 'test.parquet'))
+    print(f"Train dataset saved to {os.path.join(local_dir, 'train.parquet')}")
+    print(f"Test dataset saved to {os.path.join(local_dir, 'test.parquet')}")
+    # take 100 samples from the testset as validation
+    num_samples = 100
+    if len(test_dataset) > num_samples:
+        sampled_dataset = test_dataset.shuffle(seed=42).select(range(num_samples))
+        sampled_dataset.to_parquet(os.path.join(local_dir, 'valid.parquet'))
+        print(f"Validation dataset saved to {os.path.join(local_dir, 'valid.parquet')}")
 
     if hdfs_dir is not None:
         makedirs(hdfs_dir)
