@@ -40,7 +40,7 @@ if __name__ == '__main__':
     if leftover_size == 0:
         print("Warning: No leftover samples to use for validation.")
         # If no leftover data, use the training set as validation
-        valid_indices = train_indices
+        valid_indices = sorted(train_indices)
     elif leftover_size < train_size:
         print(
             f"Warning: Only {leftover_size} leftover samples, "
@@ -99,6 +99,16 @@ if __name__ == '__main__':
 
     train_dataset.to_parquet(os.path.join(local_dir, 'train.parquet'))
     test_dataset.to_parquet(os.path.join(local_dir, 'test.parquet'))
+    print(f"Train dataset saved to {os.path.join(local_dir, 'train.parquet')}")
+    print(f"Test dataset saved to {os.path.join(local_dir, 'test.parquet')}")
+
+    num_samples=100
+    if len(test_dataset) < num_samples:
+        print(f"Warning: The test dataset has only {len(test_dataset)} samples, which is less than the specified number of samples {num_samples}. Set to test samples")
+        num_samples = len(test_dataset)
+    sampled_dataset = test_dataset.shuffle(seed=42).select(range(num_samples))
+    sampled_dataset.to_parquet(os.path.join(local_dir, 'valid.parquet'))
+    print(f"Sample dataset saved to {os.path.join(local_dir, 'valid.parquet')}")
 
     if hdfs_dir is not None:
         makedirs(hdfs_dir)
