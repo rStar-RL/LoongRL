@@ -61,8 +61,8 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         from . import geo3k
         res = geo3k.compute_score(solution_str, ground_truth)
     elif data_source in ['math_dapo']:
-        from . import dapo_math
-        res = dapo_math.compute_score(solution_str, ground_truth)
+        from . import math_dapo
+        res = math_dapo.compute_score(solution_str, ground_truth)
         res = res['acc']
     else:
         print(f"data_source {data_source} not found")
