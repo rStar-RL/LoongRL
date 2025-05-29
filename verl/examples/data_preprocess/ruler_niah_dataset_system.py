@@ -100,12 +100,14 @@ if __name__ == '__main__':
 
     train_dataset = train_dataset.map(function=make_map_fn('train'), with_indices=True)
     test_dataset = valid_dataset.map(function=make_map_fn('test'), with_indices=True)
+    valid_dataset = test_dataset.select(range(20))  # sample the first 20 examples of test dataset for validation
 
     local_dir = args.local_dir
     hdfs_dir = args.hdfs_dir
 
     train_dataset.to_parquet(os.path.join(local_dir, 'train.parquet'))
     test_dataset.to_parquet(os.path.join(local_dir, 'test.parquet'))
+    valid_dataset.to_parquet(os.path.join(local_dir, 'valid.parquet'))
 
     if hdfs_dir is not None:
         makedirs(hdfs_dir)
