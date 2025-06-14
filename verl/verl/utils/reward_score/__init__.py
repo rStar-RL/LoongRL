@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # from . import gsm8k, math, prime_math, prime_code
+import os
 
 
 def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None):
@@ -40,8 +41,12 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         # directly return for now, since it includes debug str
         return res
     elif data_source.startswith('custom_longcontextqa_'):
-        from . import longcontext_qa
-        res = longcontext_qa.compute_score(solution_str, ground_truth)
+        if os.getenv("LLM_JUDGE", False) is False:
+            from . import longcontext_qa
+            res = longcontext_qa.compute_score(solution_str, ground_truth)
+        else:
+            from . import longcontext_qa_llm_judge
+            res = longcontext_qa_llm_judge.compute_score(solution_str, ground_truth)
     elif data_source.startswith('custom_longcontextchoice_'):
         from . import longcontext_choice
         res = longcontext_choice.compute_score(solution_str, ground_truth)
