@@ -10,7 +10,6 @@ import string
 from collections import Counter, defaultdict
 import pickle
 from pathlib import Path
-import jsonlines
 import json
 from tqdm import tqdm
 import openai
