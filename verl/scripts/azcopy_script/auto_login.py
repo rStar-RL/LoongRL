@@ -10,7 +10,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 # ───────── CONFIG ─────────
 COMMAND = ["bash", "-c", 'echo "" | az login --use-device-code']
-RUN_EVERY = dict(minutes=1)
+RUN_EVERY = dict(hours=8)
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 465
