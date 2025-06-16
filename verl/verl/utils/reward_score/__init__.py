@@ -46,7 +46,7 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
             res = longcontext_qa.compute_score(solution_str, ground_truth)
         else:
             from . import longcontext_qa_llm_judge
-            res = longcontext_qa_llm_judge.compute_score(solution_str, ground_truth)
+            res = longcontext_qa_llm_judge.compute_score(solution_str, ground_truth, prompt_str=extra_info)['score']
     elif data_source.startswith('custom_longcontextchoice_'):
         from . import longcontext_choice
         res = longcontext_choice.compute_score(solution_str, ground_truth)
