@@ -243,8 +243,6 @@ class RLHFDataset(Dataset):
         # add index for each prompt
         index = row_dict.get("extra_info", {}).get("index", 0)
         row_dict["index"] = index
-        print("Get single row from dataset, index:", index)
-        print(row_dict)
         return row_dict
 
     def __getstate__(self):
