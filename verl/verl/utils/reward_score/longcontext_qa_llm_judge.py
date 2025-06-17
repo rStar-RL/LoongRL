@@ -293,12 +293,7 @@ def call_oai_rm_llm(
             print(f"[{attempts}/{retry_count}] other exception: {exc}")
 
             if attempts >= retry_count:
-                raise RuntimeError(
-                    f"Failed after {retry_count} attempts (last error: {exc})"
-                ) from exc
-
-            # brief pause before the next counted retry
-            time.sleep(min(backoff, 5))
+                return []
 
     # ---------------- return payload ----------------
     if n == 1:
