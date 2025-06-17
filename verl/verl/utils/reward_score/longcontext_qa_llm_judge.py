@@ -339,15 +339,16 @@ def compute_score(solution_str: str,
     if answer_text:
         pred_status = parse_model_answer(answer_text)
         # gt_status = parse_model_answer(ground_truth)
-        if isinstance(ground_truth, list):
-            gt_status = ground_truth[0]
-        else:
+        if isinstance(ground_truth, str):
             gt_status = ground_truth
+        else:
+            gt_status = ground_truth[0]
         
         if pred_status:
             print(f"\n[Content Validation]")
             print(f"  Expected: {gt_status}")
             print(f"  Predicted: {pred_status}")
+            print(f" Prompt Input Question: {prompt_str}")
             metrics = calc_metrics([pred_status], [gt_status])
             metric = metrics['sub_em']
             if metric < 1.0 and os.getenv('LLM_JUDGE') == "1":
