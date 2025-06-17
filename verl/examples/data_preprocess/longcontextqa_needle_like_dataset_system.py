@@ -84,7 +84,8 @@ if __name__ == '__main__':
                 },
                 "extra_info": {
                     'split': split,
-                    'index': idx
+                    'index': idx,
+                    'input_question': example.pop('input')
                 }
             }
             return data
