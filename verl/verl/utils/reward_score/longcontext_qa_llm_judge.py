@@ -241,71 +241,81 @@ def call_oai_rm_llm(
     n: int = 1,
     temperature: float = 1.0,
     model_id: str = "gpt-4o",
-    retry_count: int = 1000000000
-) -> tuple[str, list[str]]:
-    """Call OpenAI API with retry logic.
+    retry_count: int = 10000,          # maximum “true” retries
+):
+    """Call an OpenAI-compatible chat endpoint with robust retry logic.
 
-    Args:
-        prompt: The text prompt to send to the model
-        system_prompt: System instruction for the model
-        n: Number of completions to generate
-        temperature: Sampling temperature
-        model_id: OpenAI model ID to use
-        retry_count: Number of retries on rate limit errors
+    429 (rate-limit) and 403 (key / permission) errors do **not** consume
+    `retry_count`; all other exceptions do.
 
-    Returns:
-        Generated text(s) from the model
+    Returns
+    -------
+    str | list[str]
+        One string if n == 1, otherwise a list of n strings.
     """
-    # openai_api_key = "EMPTY"
-    # openai_api_base = f"http://{os.getenv('VERIFIER_HOST')}:{os.getenv('VERIFIER_PORT')}/v1"
-    # client = openai.OpenAI(
-    #     api_key=openai_api_key,
-    #     base_url=openai_api_base,
-    # )
-    client, model_id = get_azure_client()
-    backoff = 1
-    retry_count = int(retry_count)
+    client, model_id = get_azure_client()     # helper that returns (client, model_id)
 
-    for _ in range(retry_count):
+    attempts = 0          # counts only “real” retries
+    backoff  = 1          # seconds to wait after 429 / 403 (exponential ≤ 64 s)
+
+    while True:
         try:
             response = client.chat.completions.create(
                 model=model_id,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user",   "content": prompt},
                 ],
                 temperature=temperature,
                 n=n,
             )
-            break
-        except Exception as exc:
-            if "429" in str(exc):
-                print("Retry due to rate limit: ", exc)
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 64)  # Exponential backoff up to 64s
-                continue
-            if "403" in str(exc):
-                print("Retry due to 403 error: ", exc)
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 64)
-                continue
-            print("Exception: ", exc)
-            return []
+            break   # success → exit loop
 
+        except Exception as exc:
+            msg = str(exc)
+
+            # ----------- errors that do NOT consume retry_count -----------
+            if "429" in msg:
+                print(f"[429] rate limit; retrying in {backoff}s")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 64)    # exponential back-off
+                continue                          # attempts stays the same
+
+            if "403" in msg:
+                print(f"[403] auth / quota issue; retrying in {backoff}s")
+                time.sleep(backoff)
+                client, model_id = get_azure_client()  # refresh key / endpoint
+                backoff = min(backoff * 2, 64)
+                continue                          # attempts stays the same
+
+            # ----------- errors that DO consume retry_count -----------
+            attempts += 1
+            print(f"[{attempts}/{retry_count}] other exception: {exc}")
+
+            if attempts >= retry_count:
+                raise RuntimeError(
+                    f"Failed after {retry_count} attempts (last error: {exc})"
+                ) from exc
+
+            # brief pause before the next counted retry
+            time.sleep(min(backoff, 5))
+
+    # ---------------- return payload ----------------
     if n == 1:
         return response.choices[0].message.content
     return [choice.message.content for choice in response.choices]
 
 def call_reward_model(problem: str, model_answer: str, ground_truth: str):
-    start_index = problem.index("</text>")
-    end_index = problem.index("Format your response as follows:")
-    question = problem[start_index: end_index].replace("</text>", "").strip()
+    # start_index = problem.index("</text>")
+    # end_index = problem.index("Format your response as follows:")
+    # question = problem[start_index: end_index].replace("</text>", "").strip()
+    question = problem.strip()
     orm_response = call_oai_rm_llm(
         system_prompt=GENERAL_ORM_PROMPT,
         prompt=ORM_USER_TEMPLATE.format(problem=question, answer_1=model_answer, answer_2=ground_truth),
         temperature=0.0,
         model_id="gpt-4o-mini_2024-07-18",
-        retry_count=5,
+        retry_count=10,
     )
     if "YES" in orm_response:
         return 1.0
