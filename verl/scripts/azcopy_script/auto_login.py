@@ -91,7 +91,7 @@ def attempt_login(subject: str) -> bool:
             last_line_ts = now
         else:
             last_line_ts = now
-
+    proc.wait()
     # Process finished: flush remaining buffer and report exit code
     if buffer:
         send_email(subject, f"{NODE_RANK}:\n [KeepGPU] Remaining output:\n\n" + "\n".join(buffer))
