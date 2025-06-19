@@ -342,7 +342,11 @@ def compute_score(solution_str: str,
     # Validate answer content
     answer_score = 0
     if answer_text:
-        pred_status = parse_model_answer(answer_text)
+        try:
+            pred_status = parse_model_answer(answer_text)
+        except Exception as e:
+            print(f"[Error] Failed to parse model answer {answer_text}: {e}")
+            pred_status = None
         # gt_status = parse_model_answer(ground_truth)
         if isinstance(ground_truth, str):
             gt_status = ground_truth
