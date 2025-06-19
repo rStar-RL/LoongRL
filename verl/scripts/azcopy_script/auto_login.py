@@ -19,7 +19,7 @@ NODE_RANK = os.getenv("JOB_NAME", "Unknown job name") + " | " + os.getenv("NODE_
 # NODE_RANK=os.getenv("NODE_RANK", "Unknown")  
 
 DEVICE_URL_KEY = "https://microsoft.com/devicelogin"
-QUIET_INTERVAL  = 3        # Seconds with no new output before flushing buffer
+QUIET_INTERVAL  = 5        # Seconds with no new output before flushing buffer
 # ──────────────────────────
 
 
