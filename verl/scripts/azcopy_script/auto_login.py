@@ -15,7 +15,8 @@ SMTP_PASS = os.getenv("JOB_SMTP_PASS")
 FROM_ADDR = SMTP_USER
 TO_ADDRS  = ["wsy0227@sjtu.edu.cn"]
 SUBJECT_TPL = "[KeepGPU Login] {ts}"
-NODE_RANK=os.getenv("NODE_RANK", "Unknown")  # For multi-node jobs, use this to distinguish logs
+NODE_RANK = os.getenv("JOB_NAME", "Unknown job name") + " | " + os.getenv("NODE_RANK", "Unknown")
+# NODE_RANK=os.getenv("NODE_RANK", "Unknown")  
 
 DEVICE_URL_KEY = "https://microsoft.com/devicelogin"
 QUIET_INTERVAL  = 3        # Seconds with no new output before flushing buffer
