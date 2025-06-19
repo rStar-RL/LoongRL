@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-import os
-import smtplib
-import subprocess
-import textwrap
+import os, smtplib, subprocess, time
 from datetime import datetime
 from email.message import EmailMessage
-
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-# ───────── CONFIG ─────────
-COMMAND = ["bash", "-c", 'echo "" | az login --use-device-code']
+# ─── User configuration ───
+COMMAND   = ["bash", "-c", 'echo "" | az login --use-device-code']
 RUN_EVERY = dict(hours=8)
 
 SMTP_HOST = "smtp.gmail.com"
@@ -17,36 +13,35 @@ SMTP_PORT = 465
 SMTP_USER = "sywang0227@gmail.com"
 SMTP_PASS = os.getenv("JOB_SMTP_PASS")
 FROM_ADDR = SMTP_USER
-TO_ADDRS = ["wsy0227@sjtu.edu.cn"]
+TO_ADDRS  = ["wsy0227@sjtu.edu.cn"]
 SUBJECT_TPL = "[KeepGPU Login] {ts}"
+NODE_RANK=os.getenv("NODE_RANK", "Unknown")  # For multi-node jobs, use this to distinguish logs
 
 DEVICE_URL_KEY = "https://microsoft.com/devicelogin"
-# ─────────────────────────
+QUIET_INTERVAL  = 3        # Seconds with no new output before flushing buffer
+# ──────────────────────────
 
-import os, smtplib, subprocess, time, re
-from datetime import datetime
-from email.message import EmailMessage
-
-# DEVICE_URL_PAT  = re.compile(r"microsoft\.com/devicelogin", re.I)
-DEVICE_URL_KEY = "https://microsoft.com/devicelogin"
-QUIET_INTERVAL  = 5  # seconds: if no new output within this period, flush buffer
 
 def send_email(subject: str, body: str):
+    """Send a plain-text email via Gmail SMTP."""
     msg = EmailMessage()
     msg["From"] = FROM_ADDR
     msg["To"] = ", ".join(TO_ADDRS)
     msg["Subject"] = subject
     msg.set_content(body)
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.send_message(msg)
+    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as s:
+        s.login(SMTP_USER, SMTP_PASS)
+        s.send_message(msg)
 
-def run_and_notify_login():
-    ts = datetime.now().isoformat(timespec="seconds")
-    subject = SUBJECT_TPL.format(ts=ts)
-    print(f"[{ts}] Starting az login process...")
 
-    process = subprocess.Popen(
+def attempt_login(subject: str) -> bool:
+    """
+    Start one az login attempt.
+    Returns True on success (exit code 0), False if an ERROR line was detected
+    and the attempt should be retried.
+    """
+    print(f"[{subject}] launching az login …")
+    proc = subprocess.Popen(
         COMMAND,
         text=True,
         stdout=subprocess.PIPE,
@@ -55,77 +50,77 @@ def run_and_notify_login():
         env=os.environ,
     )
 
-    buffer: list[str] = []                     # Buffer to accumulate non-critical lines
-    last_activity_ts: float = time.time()      # Last time we received output
+    buffer: list[str] = []
+    last_line_ts = time.time()
 
-    def flush_buffer(reason: str):
-        """Send email with buffered lines if not empty, then clear the buffer."""
-        nonlocal buffer
-        if not buffer:
-            return
-        body = f"Triggered by: {reason}\n\n" + "\n".join(buffer)
-        send_email(subject, body)
-        print(f"[EMAIL] {reason}: sent {len(buffer)} lines")
-        buffer = []
-
-    # Read output line-by-line
-    for line in iter(process.stdout.readline, ""):
+    while True:
+        line = proc.stdout.readline()
+        if line == "":                     # Sub-process ended
+            break
         line = line.rstrip()
         print(line)
-        found_key = False
-        last_activity_ts = time.time()
-        print(f"current line is {[line]}")
-        current_time = time.time()
+        now = time.time()
+
+        # Send e-mail immediately when the device-code URL appears
         if DEVICE_URL_KEY in line:
-            found_key = True
-            # If line includes device login URL → immediately send email
-            body = "\n".join([line,])
-            send_email(subject, f"Azure device login URL and code:\n\n{body}")
-            print("[EMAIL] Device login code sent")
+            send_email(subject, f"{NODE_RANK}: Azure device login URL and code:\n\n{line}")
+            print("[EMAIL] device-code sent")
+
+        # Detect any ERROR line → terminate and request retry
+        elif "ERROR" in line:
+            send_email(
+                subject,
+                f"{NODE_RANK}:\n [KeepGPU] ERROR detected:\n\n{line}\n\n" + "\n".join(buffer),
+            )
+            print("[EMAIL] ERROR detected, will retry …")
+            proc.terminate()
+            proc.wait(timeout=10)
+            return False
+
         else:
             buffer.append(line)
-                # Append normal output to buffer
-            last_buffer_time = current_time
 
-            # Check quiet timeout
-            while True:
-                time.sleep(0.005)
-                now = time.time()
+        # Flush buffer if no new line arrived within QUIET_INTERVAL
+        if now - last_line_ts >= QUIET_INTERVAL:
+            if buffer:
+                send_email(subject, f"{NODE_RANK} [KeepGPU] Output since last block:\n\n" +
+                           "\n".join(buffer))
+                print(f"[EMAIL] flush {len(buffer)} lines")
+                buffer.clear()
+            last_line_ts = now
+        else:
+            last_line_ts = now
 
-                # If process has exited, break the loop
-                if process.poll() is not None:
-                    break
+    # Process finished: flush remaining buffer and report exit code
+    if buffer:
+        send_email(subject, f"{NODE_RANK}:\n [KeepGPU] Remaining output:\n\n" + "\n".join(buffer))
+        buffer.clear()
 
-                # If time since last line > 3 seconds, flush buffer
-                quiet_interval = 3
-                if last_buffer_time and (now - last_buffer_time) >= quiet_interval:
-                    if buffer:
-                        body = "\n".join(buffer)
-                        send_email(subject, f"[KeepGPU] Output since last block:\n\n{body}")
-                        print(f"[EMAIL] Buffer sent: {len(buffer)} lines")
-                        buffer.clear()
-                    break  # Return to reading new lines
-
-
-        # # If quiet for over 5 seconds → flush current output
-        # if time.time() - last_activity_ts >= QUIET_INTERVAL:
-        #     flush_buffer("5-second idle timeout")
-
-    # Wait for the process to finish and flush any remaining output
-    process.wait()
-    flush_buffer("process finished")
-    summary = f"az login finished with exit code {process.returncode}."
-    send_email(subject, summary)
-    print(f"[{ts}] az login complete — summary email sent.")
+    summary = f"az login finished, exit code={proc.returncode}"
+    send_email(subject, f"{NODE_RANK}:\n{summary}")
+    print(summary)
+    return proc.returncode == 0
 
 
-# ────── Scheduler ──────
+def run_and_notify_login():
+    """Wrapper: keep retrying until one attempt succeeds."""
+    ts = datetime.now().isoformat(timespec="seconds")
+    subject = SUBJECT_TPL.format(ts=ts)
+
+    while True:
+        ok = attempt_login(subject)
+        if ok:
+            break                 # Successful login → stop retry loop
+        time.sleep(5)             # Wait 5 s before starting a new attempt
+
+
+# ─── Scheduler ───
 if __name__ == "__main__":
     sched = BlockingScheduler(timezone="UTC")
     sched.add_job(run_and_notify_login, trigger="interval", **RUN_EVERY)
     print(f"Scheduler started – job every {RUN_EVERY}")
     try:
-        run_and_notify_login()  # Run immediately once
+        run_and_notify_login()    # Run once immediately
         sched.start()
     except (KeyboardInterrupt, SystemExit):
         print("Shutting down…")
