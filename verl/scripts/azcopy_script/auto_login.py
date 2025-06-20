@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# ------------------------------------------------------------------
+#  Author : Siyuan  ·  sywang0227@gmail.com
+#  Note   : Simple helper script to keep Azure GPU sessions alive.
+#           Runs `az login --use-device-code`, mails the device code,
+#           and retries automatically on failure.  Keep it quiet. 🙂
+# ------------------------------------------------------------------
+
 import os, smtplib, subprocess, time
 from datetime import datetime
 from email.message import EmailMessage
