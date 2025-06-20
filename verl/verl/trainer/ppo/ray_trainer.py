@@ -1090,3 +1090,7 @@ class RayPPOTrainer(object):
                     return
 
                 self.global_steps += 1
+            # save checkpoint at the end of each epoch
+            if not (self.global_steps % self.config.trainer.save_freq == 0):
+                with _timer('save_checkpoint_epoch', timing_raw):
+                    self._save_checkpoint()
