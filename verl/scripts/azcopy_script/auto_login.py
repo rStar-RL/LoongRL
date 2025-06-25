@@ -20,7 +20,7 @@ SMTP_PORT = 465
 SMTP_USER = "sywang0227@gmail.com"
 SMTP_PASS = os.getenv("JOB_SMTP_PASS")
 FROM_ADDR = SMTP_USER
-TO_ADDRS  = ["wsy0227@sjtu.edu.cn"]
+TO_ADDRS  = ["wsy0227@sjtu.edu.cn", "v-gaozhang@microsoft.com"]
 SUBJECT_TPL = "[KeepGPU Login] {ts}"
 NODE_RANK = os.getenv("JOB_NAME", "Unknown job name") + " | " + os.getenv("NODE_RANK", "Unknown")
 # NODE_RANK=os.getenv("NODE_RANK", "Unknown")  
@@ -37,9 +37,11 @@ def send_email(subject: str, body: str):
     msg["To"] = ", ".join(TO_ADDRS)
     msg["Subject"] = subject
     msg.set_content(body)
+    # Ensure all recipients are included for SMTP
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as s:
+        assert SMTP_PASS is not None, "Please set JOB_SMTP_PASS environment variable with your Gmail password."
         s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
+        s.send_message(msg, from_addr=FROM_ADDR, to_addrs=TO_ADDRS)
 
 
 def attempt_login(subject: str) -> bool:
@@ -107,6 +109,20 @@ def attempt_login(subject: str) -> bool:
     summary = f"az login finished, exit code={proc.returncode}"
     send_email(subject, f"{NODE_RANK}:\n{summary}")
     print(summary)
+
+    # On successful login, send next login schedule notice
+    if proc.returncode == 0:
+        from datetime import timedelta, timezone
+        next_run_utc = datetime.now(timezone.utc) + timedelta(**RUN_EVERY)
+        next_run_bj = next_run_utc + timedelta(hours=8)
+        notice = (
+            f"{NODE_RANK}:\n[KeepGPU] Login succeeded at {datetime.now().isoformat(timespec='seconds')}.\n\n"
+            f"Next scheduled login attempt:\n"
+            f"  • UTC : {next_run_utc.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"  • BJT : {next_run_bj.strftime('%Y-%m-%d %H:%M:%S')} (UTC+8)\n"
+        )
+        send_email(subject, notice)
+
     return proc.returncode == 0
 
 
