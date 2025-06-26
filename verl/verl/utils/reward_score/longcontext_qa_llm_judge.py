@@ -287,6 +287,11 @@ def call_oai_rm_llm(
                 client, model_id = get_azure_client()  # refresh key / endpoint
                 backoff = min(backoff * 2, 64)
                 continue                          # attempts stays the same
+            if "lifetime" in msg and "expired" in msg:
+                print(f"[azure cli] token lifetime expired; refreshing")
+                client, model_id = get_azure_client()
+                backoff = min(backoff * 2, 64)
+                continue
 
             # ----------- errors that DO consume retry_count -----------
             attempts += 1
