@@ -47,7 +47,7 @@ from transformers import PretrainedConfig
 
 
 def apply_monkey_patch(config: PretrainedConfig, verbose=True):
-    if not is_transformers_version_in_range("4.45.0", "4.49.0"):
+    if not is_transformers_version_in_range("4.45.0", "4.100.0"):
         raise AssertionError("The installed `transformers` version doesn't support ulysses patch. "
                              "Please install a version between 4.45.0 and 4.49.0 to use this ulysses feature.")
     success_apply_monkey_patch = False
