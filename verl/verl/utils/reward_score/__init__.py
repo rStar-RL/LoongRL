@@ -15,7 +15,7 @@
 import os
 
 
-def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None):
+def _default_compute_score(data_source, solution_str, ground_truth, extra_info=None, prompt_str=None):
     if data_source == 'openai/gsm8k':
         from . import gsm8k
         res = gsm8k.compute_score(solution_str, ground_truth)
@@ -69,6 +69,16 @@ def _default_compute_score(data_source, solution_str, ground_truth, extra_info=N
         from . import math_dapo
         res = math_dapo.compute_score(solution_str, ground_truth)
         res = res['acc']
+
+    elif "long_toc_choices" in data_source:
+        from . import long
+        res = long.compute_score(solution_str, ground_truth, prompt_str)['acc']
+    elif "docmath" in data_source:
+        from . import docmath
+        res = docmath.compute_score(solution_str, ground_truth, prompt_str)['acc']
+    elif "multihoprag" in data_source or "musique" in data_source:
+        from . import docqa
+        res = docqa.compute_score(solution_str, ground_truth, prompt_str)['acc']
     else:
         print(f"data_source {data_source} not found")
         raise NotImplementedError

@@ -62,6 +62,7 @@ class NaiveRewardManager:
                 solution_str=response_str,
                 ground_truth=ground_truth,
                 extra_info=extra_info,
+                prompt_str=prompt_str,
             )
             scores.append(score)
         data.batch['acc'] = torch.tensor(scores, dtype=torch.float32, device=prompt_ids.device)
@@ -101,6 +102,7 @@ class NaiveRewardManager:
                 solution_str=response_str,
                 ground_truth=ground_truth,
                 extra_info=extra_info,
+                prompt_str=prompt_str,
             )
 
             return i, valid_response_length.item(), score, prompt_str, response_str, ground_truth, data_source, extra_info

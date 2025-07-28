@@ -43,3 +43,4 @@ pip install --force-reinstall vllm -U
 pip install tensordict==0.7.2
 pip install wandb==0.19.7
 pip install codetiming
+pip install -U transformers
