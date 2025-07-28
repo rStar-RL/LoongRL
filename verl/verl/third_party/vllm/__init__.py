@@ -53,6 +53,10 @@ elif package_version == '0.6.3+rocm624':
     from .vllm_v_0_6_3.llm import LLM
     from .vllm_v_0_6_3.llm import LLMEngine
     from .vllm_v_0_6_3 import parallel_state
+elif package_version == '0.6.7.dev2+g113274a0.rocm630':
+    # this is the vllm version in sglang image
+    from vllm import LLM
+    from vllm.distributed import parallel_state
 elif vs.parse(package_version) >= vs.parse('0.7.0'):
     # From 0.6.6.post2 on, vllm supports SPMD inference
     # See https://github.com/vllm-project/vllm/pull/12071
