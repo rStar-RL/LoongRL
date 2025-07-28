@@ -1,5 +1,5 @@
-sas_token="sp=racwdl&st=2025-03-11T18:14:16Z&se=2025-03-17T02:14:16Z&skoid=7b3a9ac3-4eaa-434a-8801-b2b90159bf0b&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-03-11T18:14:16Z&ske=2025-03-17T02:14:16Z&sks=b&skv=2022-11-02&spr=https&sv=2022-11-02&sr=c&sig=7iLKNHFSPbp%2F6bKUJ1nelVLqclrQQUIsVppyjiOZ2xY%3D"
-ckpt_path=/home/aiscuser/rStar-RL/verl/checkpoints/verl_grpo_rej_test/qwen2_8k+2k_math_15ksamples_128bsz_10epochs_end
-proj_name=verl_grpo_rej_test
+sas_token="sp=racwdl&st=2025-07-28T05:55:52Z&se=2025-08-03T14:10:52Z&skoid=7b3a9ac3-4eaa-434a-8801-b2b90159bf0b&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-28T05:55:52Z&ske=2025-08-03T14:10:52Z&sks=b&skv=2024-11-04&spr=https&sv=2024-11-04&sr=c&sig=zhlIGrO4sQti8u3XLpOY%2BRrkeUSita2kN1KnHhod7cw%3D"
+ckpt_path=/scratch/nishang/rStar-RL/verl/checkpoints/verl_rej_test/qwen25_14B_no_entro_2node_16k_2k_math_filtered_dis_mathqa_256bsz_20ksamples_grpo_subem_end
+proj_name=verl_rej_test
 echo "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/test_code/verl_playground/verl/checkpoints/${proj_name}/?${sas_token}"
-azcopy copy --recursive $ckpt_path "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/test_code/verl_playground/verl/checkpoints/${proj_name}/?${sas_token}"
+azcopy copy --recursive --overwrite="false" $ckpt_path "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/test_code/verl_playground/verl/checkpoints/${proj_name}/?${sas_token}"
