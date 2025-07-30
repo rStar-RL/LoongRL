@@ -49,6 +49,7 @@ dependencies = [
     "vllm==0.8.2",
     "wandb",
     "omegaconf",
+    "jsonlines",
 ]
 
 # Optional dependencies (extras_require in setup.py)
