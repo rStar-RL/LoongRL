@@ -1,3 +1,3 @@
-sas_token="sp=racwdl&st=2025-03-11T18:14:16Z&se=2025-03-17T02:14:16Z&skoid=7b3a9ac3-4eaa-434a-8801-b2b90159bf0b&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-03-11T18:14:16Z&ske=2025-03-17T02:14:16Z&sks=b&skv=2022-11-02&spr=https&sv=2022-11-02&sr=c&sig=7iLKNHFSPbp%2F6bKUJ1nelVLqclrQQUIsVppyjiOZ2xY%3D"
+sas_token="sp=racwdl&st=2025-07-31T07:59:51Z&se=2025-08-06T16:14:51Z&skoid=7b3a9ac3-4eaa-434a-8801-b2b90159bf0b&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-31T07:59:51Z&ske=2025-08-06T16:14:51Z&sks=b&skv=2024-11-04&spr=https&sv=2024-11-04&sr=c&sig=b%2BwRRwGEetSE8fUq%2FfPDVG730jQ7dsy2DzbUz1tROow%3D"
 echo https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/rl_datasets${proj_name}/?${sas_token}
 azcopy copy --recursive "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/rl_datasets${proj_name}/?${sas_token}" ~

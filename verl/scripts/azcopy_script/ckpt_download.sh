@@ -1,0 +1,5 @@
+sas_token="sp=racwdl&st=2025-07-31T07:59:51Z&se=2025-08-06T16:14:51Z&skoid=7b3a9ac3-4eaa-434a-8801-b2b90159bf0b&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-31T07:59:51Z&ske=2025-08-06T16:14:51Z&sks=b&skv=2024-11-04&spr=https&sv=2024-11-04&sr=c&sig=b%2BwRRwGEetSE8fUq%2FfPDVG730jQ7dsy2DzbUz1tROow%3D"
+ckpt_path=~/rStar-RL/verl/checkpoints/verl_rej_test/
+proj_name=verl_rej_test/qwen25_14B_no_entro_2node_16k_2k_math_filtered_dis_mathqa_512bsz_20ksamples_grpo_subem_end
+echo "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/test_code/verl_playground/verl/checkpoints/${proj_name}/?${sas_token}"
+azcopy copy --recursive   "https://sanbpx4p3idss6q.blob.core.windows.net/longcontext/models/siyuan/test_code/verl_playground/verl/checkpoints/${proj_name}/?${sas_token}" $ckpt_path
