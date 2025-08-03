@@ -27,6 +27,7 @@
 
 from __future__ import annotations
 import os
+import asyncio
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, List
 from omegaconf import DictConfig
@@ -148,13 +149,16 @@ class SGLangRollout(BaseRollout):
             device_mesh_cpu=device_mesh_cpu["tp"],
             base_gpu_id=0,
             gpu_id_step=1,
+            watchdog_timeout=900,
+            # disable_custom_all_reduce=True,
+            disable_cuda_graph=True,
             # enable_memory_saver=True,  # not support on rocm, cuda use this to sleep gpu
             # NOTE(Chenyang): if you want to debug the sglang engine
             # please set the following parameters
             # Otherwise, it will make the engine run too slow
             # log_level="INFO",
             # log_requests=True,
-            # log_requests_level=2,
+            # log_requests_level=0,
             # max_running_requests=1,
         )
 
@@ -286,6 +290,12 @@ class SGLangRollout(BaseRollout):
 
         # free cache engine
         if self.config.free_cache_engine and self.inference_engine._engine is not None:
-            self.inference_engine._engine.tokenizer_manager.flush_cache()
+            # time to free the cache
+            tic = asyncio.get_event_loop().time()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(self.inference_engine._engine.tokenizer_manager.flush_cache())
+            # self.inference_engine._engine.tokenizer_manager.flush_cache()
+            toc = asyncio.get_event_loop().time()
+            print(f"Free cache time: {toc - tic:.2f} seconds")
 
         return DataProto(batch=batch)
