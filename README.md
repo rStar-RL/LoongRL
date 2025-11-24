@@ -305,30 +305,22 @@ export WANDB_API_KEY=<your_key>
 - **Code**: `code_server` (execution-based)
 - **General**: `docmath`, `docqa`
 
-## Development Guidelines
-
-**Please don't directly commit to the main branch.**
-
-To merge new features or fixes into main, submit a pull request (PR). Use **Squash Merge** to keep commit history clean by combining all commits into a single commit.
-
-## Documentation
-
-- **veRL Framework**: [verl/README.md](verl/README.md) - Detailed GRPO configurations, algorithms, and API reference
-- **Original veRL**: [veRL Documentation](https://verl.readthedocs.io/en/latest/) | [HybridFlow Paper (EuroSys 2025)](https://arxiv.org/abs/2409.19256v2)
-
 ## Citation
 
 If you use LoongRL in your research, please cite our paper:
 
 ```bibtex
-@article{zhang2025loongrl,
-  title={LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts},
-  author={Zhang, Siyuan and others},
-  journal={arXiv preprint arXiv:2510.19363},
-  year={2025}
+@misc{wang2025loongrlreinforcementlearningadvanced,
+      title={LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts}, 
+      author={Siyuan Wang and Gaokai Zhang and Li Lyna Zhang and Ning Shang and Fan Yang and Dongyao Chen and Mao Yang},
+      year={2025},
+      eprint={2510.19363},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2510.19363}, 
 }
 ```
 
 ## Acknowledgement
 
-This project is based on [veRL (HybridFlow)](https://github.com/volcengine/verl) by the ByteDance Seed team. veRL is inspired by Nemo-Aligner, DeepSpeed-Chat, and OpenRLHF.
+This project is based on [veRL (HybridFlow)](https://github.com/volcengine/verl) by the ByteDance Seed team. veRL is inspired by Nemo-Aligner, DeepSpeed-Chat, and OpenRLHF. See their original documentation at [verl/README.md](verl/README.md).
