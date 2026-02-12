@@ -1,10 +1,15 @@
 # LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts
 
 [![arXiv](https://img.shields.io/badge/arXiv-2510.19363-b31b1b.svg)](https://arxiv.org/abs/2510.19363)
+[![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md.svg)](https://huggingface.co/papers/2510.19363)
+
+> **Accepted at ICLR 2026 (Oral)**
 
 This repository contains the official implementation of **LoongRL**, a reinforcement learning framework for training large language models on long-context question answering and mathematical reasoning tasks. The project uses a customized version of [veRL (HybridFlow)](https://github.com/volcengine/verl) optimized for **Group Relative Policy Optimization (GRPO)** with support for AMD MI300X and NVIDIA GPUs.
 
 **Paper**: [LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts](https://arxiv.org/abs/2510.19363)
+
+**Data Creation**: Looking for our long-context training data synthesis pipeline? Check out [**KeyChain**](https://github.com/Wangmerlyn/KeyChain) — our UUID-driven data creation pipeline that easily constructs high-quality multi-hop QA instances over long contexts with customized multi-level distractors, enabling fine-grained control over difficulty.
 
 ## Key Features
 
