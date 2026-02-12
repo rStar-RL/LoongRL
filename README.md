@@ -1,10 +1,13 @@
-# LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts
+# LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts **[ICLR 2026 Oral]**
 
 [![arXiv](https://img.shields.io/badge/arXiv-2510.19363-b31b1b.svg)](https://arxiv.org/abs/2510.19363)
+[![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-sm-dark.svg)](https://huggingface.co/papers/2510.19363)
 
 This repository contains the official implementation of **LoongRL**, a reinforcement learning framework for training large language models on long-context question answering and mathematical reasoning tasks. The project uses a customized version of [veRL (HybridFlow)](https://github.com/volcengine/verl) optimized for **Group Relative Policy Optimization (GRPO)** with support for AMD MI300X and NVIDIA GPUs.
 
 **Paper**: [LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts](https://arxiv.org/abs/2510.19363)
+
+**Data Creation**: Looking for our long-context training data synthesis pipeline? Check out [**KeyChain**](https://github.com/Wangmerlyn/KeyChain) — our UUID-driven data creation pipeline that easily constructs high-quality multi-hop QA instances over long contexts with customized multi-level distractors, enabling fine-grained control over difficulty.
 
 ## Key Features
 
@@ -14,6 +17,29 @@ This repository contains the official implementation of **LoongRL**, a reinforce
 - **Multi-node Distributed Training**: Scales to 7B-32B models across GPU clusters
 - **AMD MI300X Optimized**: ROCm patches for vLLM 0.7.3 and SGLang 0.4.4.post1
 - **Flexible Reward Functions**: 16+ reward implementations including answer verification, process rewards, and execution-based evaluation
+
+## Main Results
+
+LoongRL delivers frontier-level long-context reasoning at much smaller scales (7B/14B), rivaling o3-mini and DeepSeek-R1, while preserving general short-context abilities across all scales.
+
+| | Long-Context Reasoning | | | | | | General & Short Reasoning | | | |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Model** | **Avg.** | **HotpotQA** | **2WikiMQA** | **MuSiQue** | **NarrativeQA** | **QASPER** | **Avg.** | **MMLU** | **MATH** | **IFEval** |
+| o3-mini (medium) | 74.5 | 83.0 | 89.0 | 64.0 | 60.7 | 60.5 | **92.1** | 86.9 | **98.0** | **91.5** |
+| DeepSeek-R1 | **74.9** | 82.7 | 91.3 | **72.2** | **66.9** | 61.4 | 90.5 | **90.8** | 97.3 | 83.3 |
+| GPT-4o | 64.7 | 82.5 | 78.0 | 54.0 | 60.5 | 48.5 | 82.5 | 88.7 | 74.6 | 84.3 |
+| QwQ-32B | 69.6 | 78.5 | 87.4 | 62.7 | 61.1 | 58.5 | 85.9 | 75.7 | **98.0** | 83.9 |
+| R1-Distill-LLaMA-70B | 65.4 | 76.1 | 85.0 | 61.9 | 53.4 | 50.5 | 85.4 | 82.4 | 94.5 | 79.3 |
+| | | | | | | | | | | |
+| Qwen2.5-7B-Instruct | 48.9 | 69.5 | 50.5 | 34.0 | 44.5 | 46.0 | 73.5 | 73.4 | 76.0 | **71.2** |
+| R1-Distill-Qwen-7B | 31.2 | 40.2 | 53.3 | 11.1 | 8.9 | 42.5 | 69.9 | 62.3 | **92.8** | 54.7 |
+| **LoongRL-7B** | **72.4** | **83.1** | **91.1** | **65.6** | **58.4** | **63.6** | **75.0** | **76.2** | 78.0 | 70.9 |
+| | | | | | | | | | | |
+| Qwen2.5-14B-Instruct | 53.1 | 74.0 | 60.5 | 36.5 | 48.5 | 46.0 | 81.3 | 79.4 | 83.4 | **81.0** |
+| R1-Distill-Qwen-14B | 64.9 | 77.5 | 87.0 | 58.0 | 51.0 | 51.0 | 81.0 | 76.6 | 93.9 | 72.6 |
+| R1-Distill-Qwen-32B | 65.5 | 76.3 | 87.6 | 59.8 | 52.7 | 50.9 | 82.4 | **80.5** | 94.3 | 72.5 |
+| QwenLong-L1-32B | 70.1 | 80.7 | 89.1 | 65.2 | 58.6 | 56.7 | **84.1** | 78.5 | **95.2** | 78.6 |
+| **LoongRL-14B** | **74.2** | **82.2** | **93.3** | **67.5** | **63.4** | **64.5** | 80.7 | **80.5** | 83.2 | 78.4 |
 
 ## Repository Structure
 
