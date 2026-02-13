@@ -11,6 +11,14 @@ This repository contains the official implementation of **LoongRL**, a reinforce
 
 **Data Creation**: Looking for our long-context training data synthesis pipeline? Check out [**KeyChain**](https://github.com/Wangmerlyn/KeyChain) — our UUID-driven data creation pipeline that easily constructs high-quality multi-hop QA instances over long contexts with customized multi-level distractors, enabling fine-grained control over difficulty.
 
+## Main Results
+
+<p align="center">
+  <img src="assets/images/table2_results.png" alt="Table 2: Results of LoongRL and frontier LLMs on long-context reasoning and general short tasks" width="95%" />
+</p>
+
+LoongRL delivers frontier-level long-context reasoning at much smaller scales (7B/14B), rivaling o3-mini and DeepSeek-R1, while preserving general short-context abilities across scales.
+
 ## Key Features
 
 - **GRPO Training**: Critic-free reinforcement learning with group-wise advantage estimation
@@ -24,6 +32,8 @@ This repository contains the official implementation of **LoongRL**, a reinforce
 
 ```
 LoongRL/
+├── assets/
+│   └── images/             # README figures (e.g., result tables)
 ├── verl/                    # Customized veRL framework (see verl/README.md)
 │   ├── examples/
 │   │   ├── data_preprocess/     # 21 dataset preprocessing scripts
