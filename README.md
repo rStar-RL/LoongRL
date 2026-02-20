@@ -1,6 +1,6 @@
 # LoongRL: Reinforcement Learning for Advanced Reasoning over Long Contexts **[ICLR 2026 Oral]**
 
-[![ICLR 2026](https://img.shields.io/badge/ICLR-2026%20Oral-blue)](https://arxiv.org/abs/2510.19363)
+[![ICLR 2026](https://img.shields.io/badge/ICLR-2026%20Oral-blue)](https://iclr.cc/virtual/2026/oral/10007440)
 [![arXiv](https://img.shields.io/badge/arXiv-2510.19363-b31b1b.svg)](https://arxiv.org/abs/2510.19363)
 [![Project Page](https://img.shields.io/badge/Project-Page-green)](https://loongrl.github.io)
 [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-sm-dark.svg)](https://huggingface.co/papers/2510.19363)
