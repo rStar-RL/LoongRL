@@ -2,6 +2,7 @@
 
 [![ICLR 2026](https://img.shields.io/badge/ICLR-2026%20Oral-blue)](https://arxiv.org/abs/2510.19363)
 [![arXiv](https://img.shields.io/badge/arXiv-2510.19363-b31b1b.svg)](https://arxiv.org/abs/2510.19363)
+[![Project Page](https://img.shields.io/badge/Project-Page-green)](https://loongrl.github.io)
 [![Paper page](https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-sm-dark.svg)](https://huggingface.co/papers/2510.19363)
 <a href="https://huggingface.co/datasets/OldKingMeister/LoongRL-Train-Data"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md-dark.svg" height="20"></a>
 
